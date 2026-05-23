@@ -43,13 +43,14 @@ def _truncate(s: str) -> str:
                     "Multi-line code: use print() for output. "
                     "You can import any installed package. If import fails, the user will install it.\n"
                     "OUTPUT RULES — result is read by an LLM, not a human:\n"
-                    "- Use print() for all output, one value per line or key: value\n"
-                    "- NEVER add headers, titles, labels, explanations, or decorative text\n"
-                    "- Raw data only, no markdown, no table formatting\n"
-                    "- If user asks for ONE answer, output ONE value, not multiple options\n"
-                    "BAD:  print('文件列表：') then print(...)\n"
-                    "BAD:  print(f'如果从第0项，F(30)={a}，如果从第1项，F(29)={b}')\n"
-                    "GOOD: print(f'{a}') or print(f'{k}: {v}')"
+                    "The LLM already knows the context. It only needs raw data.\n"
+                    "RULE: Output ONLY raw data. Everything else is noise.\n"
+                    "Forbidden: headers, titles, labels, separators (---, ===), "
+                    "alignment (f'{x:<30}'), counts, summaries, markdown, formatting, "
+                    "table borders, column headers, decorative text, confirmations\n"
+                    "If asked for ONE answer, output ONE value.\n"
+                    "GOOD: print(f'{name}: {size}') or print(result)\n"
+                    "BAD:  print(f\"{'name':<30}\") / print('---') / print('共 X 个')"
                 ),
             }
         },

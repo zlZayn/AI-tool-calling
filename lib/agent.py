@@ -1,8 +1,9 @@
-"""Tool Calling: Let AI call local functions"""
+"""Agent — LLM with tool calling capability."""
 
 import json
 import os
 import sys
+
 from openai import OpenAI
 
 # Force fresh import (clears IPython/Python module cache)
@@ -18,7 +19,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 class Agent:
     def __init__(self, config: str = "config.json"):
-        cfg_path = os.path.join(os.path.dirname(__file__), config)
+        cfg_path = os.path.join(os.path.dirname(__file__), "..", config)
         with open(cfg_path) as f:
             cfg = json.load(f)
         self.client = OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"])
@@ -38,15 +39,34 @@ class Agent:
                 out.append(msg)
         return out
 
-    def chat(self, user_message: str) -> str:
+    def chat(
+        self,
+        user_message: str,
+        *,
+        verbose: bool = False,
+        stream: bool = False,
+        force_tool: bool = False,
+    ) -> str:
+        """Send a message and return the answer.
+
+        Args:
+            user_message: The user's question or prompt.
+            verbose: Print thinking/tool/answer to stdout.
+            stream: Print chunks in real-time (only effective when verbose=True).
+            force_tool: Force the LLM to use a tool.
+
+        Returns:
+            The final answer string.
+        """
         self.messages.append({"role": "user", "content": user_message})
+        tool_choice = "required" if force_tool else "auto"
 
         while True:
-            stream = self.client.chat.completions.create(
+            api_stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=self._compact(self.messages),
                 tools=self.schemas or None,
-                tool_choice="auto",
+                tool_choice=tool_choice,
                 stream=True,
             )
 
@@ -54,8 +74,9 @@ class Agent:
             reasoning = ""
             content_started = False
             tool_calls: dict[int, dict] = {}  # index -> {id, name, arguments}
+            live = verbose and stream  # print chunks in real-time
 
-            for chunk in stream:
+            for chunk in api_stream:
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -63,18 +84,20 @@ class Agent:
                 # Reasoning (thinking)
                 rc = getattr(delta, "reasoning_content", None)
                 if rc:
-                    if not reasoning:
+                    if live and not reasoning:
                         print("  [llm-thinking] ", end="", flush=True)
                     reasoning += rc
-                    print(rc, end="", flush=True)
+                    if live:
+                        print(rc, end="", flush=True)
 
                 # Content
                 if delta.content:
                     content += delta.content
-                    if not content_started:
+                    if live and not content_started:
                         print("[llm-answer] ", end="", flush=True)
                         content_started = True
-                    print(delta.content, end="", flush=True)
+                    if live:
+                        print(delta.content, end="", flush=True)
 
                 # Tool calls (accumulate chunks)
                 if delta.tool_calls:
@@ -92,13 +115,21 @@ class Agent:
                                     tc_delta.function.arguments
                                 )
 
-            if reasoning:
-                print()  # newline after thinking
-
-            # No tool calls → done
-            if not tool_calls:
+            # Non-streaming verbose: print accumulated output at once
+            if verbose and not stream:
+                if reasoning:
+                    print(f"  [llm-thinking] {reasoning}")
                 if content:
-                    print()  # newline after content
+                    print(f"[llm-answer] {content}")
+
+            # Streaming newline after thinking
+            if live and reasoning:
+                print()
+
+            # No tool calls -> done
+            if not tool_calls:
+                if live and content:
+                    print()
                 self.messages.append({"role": "assistant", "content": content})
                 return content
 
@@ -123,9 +154,11 @@ class Agent:
             for tc in tc_list:
                 fn_name = tc["name"]
                 fn_args = tc["arguments"]
-                print(f"  [tool-calling] {fn_name}({fn_args})")
+                if verbose:
+                    print(f"  [tool-call] {fn_name}({fn_args})")
                 result = self.tools[fn_name](**json.loads(fn_args))
-                print(f"  [tool-result] {result}")
+                if verbose:
+                    print(f"  [tool-result] {result}")
                 self.messages.append(
                     {
                         "role": "tool",
@@ -134,27 +167,3 @@ class Agent:
                         "content": result,
                     }
                 )
-
-
-# ── Run ───────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    agent = Agent()
-
-    questions = [
-        # Data processing with collections
-        "统计这段英文里每个单词出现的次数，按频率从高到低排列：'the quick brown fox jumps over the lazy dog the fox'",
-        # File system
-        "当前目录下有哪些文件？列出文件名和大小。",
-        # JSON processing
-        '解析这个 JSON，找出所有价格大于 50 的商品名：[{"name":"apple","price":30},{"name":"banana","price":60},{"name":"cherry","price":80}]',
-        # Algorithm with recursion
-        "用递归算斐波那契数列第 30 项。",
-    ]
-    for q in questions:
-        agent.messages.clear()
-        print(f"\n[question] {q}")
-        try:
-            agent.chat(q)
-        except Exception as e:
-            print(f"[error] {e}")
