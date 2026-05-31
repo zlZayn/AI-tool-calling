@@ -1,21 +1,19 @@
 # AI-tool-calling
 
-极简工具调用框架。CLI + MCP 双模式运行。
-
-> 本项目的**配置文件有两个**，分别对应两种模式，不要弄混：
+极简工具调用框架。Tool Calling + MCP 双模式运行。
 
 | 模式 | 配置 | 作用 |
 | --- | --- | --- |
-| **CLI** | `config/config.json` | API 密钥 / 地址，供 LLM 调用 |
-| **MCP** | `.mcp.json` | 注册 MCP 服务器给客户端使用 |
+| **Tool Calling** | `config/config.json` | 加载 `tools/` 下的工具，直接喂给 LLM |
+| **MCP** | `.mcp.json` | 把同样工具包装成 MCP Server，给 agent 用 |
 
 `config/config.json` 被 `.gitignore` 忽略，需从 `config/config_example.json` 复制后填写 API 密钥。
 
 ---
 
-## CLI 模式
+## Tool Calling
 
-直接调用 LLM API（兼容 OpenAI 格式）。需要 API 密钥。
+直接调 LLM API（兼容 OpenAI 格式）。需要 API 密钥。
 
 ### 配置
 

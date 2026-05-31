@@ -3,6 +3,7 @@
 import ctypes
 import os
 import platform
+import sys
 from ctypes import wintypes
 
 
@@ -362,7 +363,14 @@ _RUNTIME_CHECKS = [
 ]
 
 
-def _detect_runtimes() -> dict[str, str]:
+def _detect_runtimes_direct() -> dict[str, str]:
+    """Original detection: direct subprocess calls.
+
+    Works in CLI mode and direct Python calls, but HANGS when called from
+    within the MCP server's anyio event loop on Windows (because setting
+    ``STARTF_USESTDHANDLES`` on the child process conflicts with the IOCP-
+    based ProactorEventLoop).
+    """
     import shutil
     import subprocess
 
@@ -378,6 +386,7 @@ def _detect_runtimes() -> dict[str, str]:
                 text=True,
                 timeout=15,
                 errors="replace",
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             raw = result.stdout or result.stderr or ""
             version = parser(raw) if parser else raw.strip()
@@ -388,6 +397,65 @@ def _detect_runtimes() -> dict[str, str]:
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             found[label] = "(detected, failed to query)"
     return found
+
+
+def _detect_runtimes() -> dict[str, str]:
+    """Detect installed runtimes.  Uses a helper subprocess on Windows
+    to work around a conflict between ``STARTF_USESTDHANDLES`` and the
+    MCP server's ``ProactorEventLoop`` (the child hangs when std handles
+    are explicitly set while an IOCP-based event loop is running).
+
+    On other platforms the detection runs directly (no additional overhead).
+    """
+    if sys.platform != "win32":
+        return _detect_runtimes_direct()
+
+    # Windows + MCP workaround: launch a plain subprocess (no handle
+    # redirection at all) that runs the actual detection and writes
+    # results to a temp JSON file.
+    import json
+    import tempfile
+    import subprocess
+
+    proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Two temp files: one for the helper script, one for its output
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False, encoding="utf-8"
+    ) as f:
+        helper_path = f.name
+        out_path = f.name + ".json"
+
+    try:
+        with open(helper_path, "w", encoding="utf-8") as f:
+            f.write(
+                f"import json, sys\n"
+                f"sys.path.insert(0, {proj_root!r})\n"
+                f"from tools._env_helpers import _detect_runtimes_direct\n"
+                f"result = _detect_runtimes_direct()\n"
+                f"with open({out_path!r}, 'w') as f2:\n"
+                f"    json.dump(result, f2)\n"
+            )
+
+        proc = subprocess.Popen(
+            [sys.executable, helper_path],
+            creationflags=(subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW),
+        )
+        proc.wait(timeout=120)
+
+        if os.path.exists(out_path):
+            with open(out_path, encoding="utf-8") as f:
+                return json.load(f)
+
+        # Fallback: try direct (may hang on MCP Windows, but worth a shot)
+        return _detect_runtimes_direct()
+    except Exception:
+        return _detect_runtimes_direct()
+    finally:
+        for p in (helper_path, out_path):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------

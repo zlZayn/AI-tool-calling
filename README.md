@@ -1,21 +1,19 @@
 # AI-tool-calling
 
-Minimal tool calling framework. CLI + MCP dual-mode.
-
-This project has **two separate configs** for two separate modes — don't confuse them:
+Minimal tool calling framework. Tool Calling + MCP dual-mode.
 
 | Mode | Config | What it does |
 | --- | --- | --- |
-| **CLI** | `config/config.json` | API key / endpoint for LLM calls |
-| **MCP** | `.mcp.json` | Server registration for MCP clients |
+| **Tool Calling** | `config/config.json` | Loads tools from `tools/` and feeds them to LLM directly |
+| **MCP** | `.mcp.json` | Wraps the same tools as MCP servers for agents |
 
 `config/config.json` is git-ignored; copy from the example and fill in your API key.
 
 ---
 
-## CLI Mode
+## Tool Calling
 
-Uses LLM API directly (OpenAI-compatible). Requires API key.
+Calls LLM API directly (OpenAI-compatible). Requires API key.
 
 ### Config
 
