@@ -4,11 +4,11 @@
   "naming_convention": {
     "server": {
       "name": "{verb}-{noun}",
-      "file": "{verb}_{noun}_server.py"
+      "file": "{verb}_{noun}_server.ts"
     },
     "tool": {
       "name": "{verb}_{noun}",
-      "file": "{verb}_{noun}.py"
+      "file": "{verb}_{noun}.ts"
     }
   },
   "servers": [
@@ -17,9 +17,18 @@
       "noun": "code",
       "description": "Execute code in sandboxed runtimes",
       "tools": [
-        { "noun": "python", "description": "Execute Python code" },
-        { "noun": "r", "description": "Execute R code in sandbox" },
-        { "noun": "shell", "description": "Run shell commands" }
+        {
+          "noun": "python",
+          "description": "Execute Python code"
+        },
+        {
+          "noun": "r",
+          "description": "Execute R code in sandbox"
+        },
+        {
+          "noun": "shell",
+          "description": "Run shell commands"
+        }
       ]
     },
     {
@@ -27,12 +36,30 @@
       "noun": "env-info",
       "description": "Fetch categorized host environment info",
       "tools": [
-        { "noun": "system_info", "description": "Host OS information" },
-        { "noun": "cpu_info", "description": "Processor model and cores" },
-        { "noun": "memory_info", "description": "Physical memory usage" },
-        { "noun": "disk_info", "description": "C: drive disk usage" },
-        { "noun": "gpu_info", "description": "GPU adapters" },
-        { "noun": "runtime_info", "description": "Installed dev tools and runtimes" }
+        {
+          "noun": "system_info",
+          "description": "Host OS information"
+        },
+        {
+          "noun": "cpu_info",
+          "description": "Processor model and cores"
+        },
+        {
+          "noun": "memory_info",
+          "description": "Physical memory usage"
+        },
+        {
+          "noun": "disk_info",
+          "description": "C: drive disk usage"
+        },
+        {
+          "noun": "gpu_info",
+          "description": "GPU adapters"
+        },
+        {
+          "noun": "runtime_info",
+          "description": "Installed dev tools and runtimes"
+        }
       ]
     }
   ],

@@ -1,5 +1,5 @@
-__pycache__/
-*.pyc
 config/config.json
 .env
 .claude/
+dist/
+node_modules/

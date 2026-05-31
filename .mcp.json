@@ -2,17 +2,19 @@
   "mcpServers": {
     "run-code": {
       "type": "stdio",
-      "command": "python",
+      "command": "npx",
       "args": [
-        "servers/run_code_server.py"
+        "tsx",
+        "servers/run_code_server.ts"
       ],
       "env": {}
     },
     "get-env-info": {
       "type": "stdio",
-      "command": "python",
+      "command": "npx",
       "args": [
-        "servers/get_env_info_server.py"
+        "tsx",
+        "servers/get_env_info_server.ts"
       ],
       "env": {}
     }

@@ -1,0 +1,600 @@
+/**
+ * Shared helpers for get_*_info tools — hardware queries + runtime detection.
+ *
+ * Python version uses ctypes (kernel32 calls) and winreg (registry reads).
+ * TypeScript version uses child_process.exec with PowerShell CIM cmdlets
+ * and Node.js os module for basic system info.
+ */
+
+import { exec, execFile, spawn } from "child_process";
+import { promisify } from "util";
+import * as os from "os";
+
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+// ---------------------------------------------------------------------------
+// PowerShell helpers
+// ---------------------------------------------------------------------------
+
+/** Run a PowerShell command and return parsed JSON. Returns null on failure. */
+async function psJson<T>(command: string): Promise<T | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "powershell",
+      ["-NoProfile", "-Command", command],
+      { timeout: 15_000, encoding: "utf-8" }
+    );
+    return JSON.parse(stdout.trim()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Run a PowerShell command and return raw stdout string. */
+async function psRaw(command: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "powershell",
+      ["-NoProfile", "-Command", command],
+      { timeout: 15_000, encoding: "utf-8" }
+    );
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Memory
+// ---------------------------------------------------------------------------
+
+interface MemoryInfo {
+  TotalVisibleMemorySize: string;
+  FreePhysicalMemory: string;
+}
+
+async function getMemoryStatus(): Promise<{ totalGb: number; availableGb: number; usagePct: number }> {
+  const info = await psJson<MemoryInfo>(
+    "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory | ConvertTo-Json"
+  );
+  if (info) {
+    const totalKb = parseInt(info.TotalVisibleMemorySize, 10);
+    const freeKb = parseInt(info.FreePhysicalMemory, 10);
+    const totalGb = Math.round((totalKb / 1024 / 1024) * 10) / 10;
+    const availableGb = Math.round((freeKb / 1024 / 1024) * 10) / 10;
+    const usagePct = Math.round(((totalKb - freeKb) / totalKb) * 100);
+    return { totalGb, availableGb, usagePct };
+  }
+  // Fallback: os module (less precise)
+  const totalBytes = os.totalmem();
+  const freeBytes = os.freemem();
+  const totalGb = Math.round((totalBytes / 1024 ** 3) * 10) / 10;
+  const availableGb = Math.round((freeBytes / 1024 ** 3) * 10) / 10;
+  const usagePct = Math.round(((totalBytes - freeBytes) / totalBytes) * 100);
+  return { totalGb, availableGb, usagePct };
+}
+
+// ---------------------------------------------------------------------------
+// Uptime
+// ---------------------------------------------------------------------------
+
+function getUptimeDays(): number {
+  return Math.round((os.uptime() / 86400) * 100) / 100;
+}
+
+// ---------------------------------------------------------------------------
+// CPU
+// ---------------------------------------------------------------------------
+
+interface CpuInfo {
+  Name: string;
+  NumberOfCores: number;
+  NumberOfLogicalProcessors: number;
+}
+
+async function getCpuInfo(): Promise<{ processor: string; physicalCores: number; logicalCores: number }> {
+  const info = await psJson<CpuInfo>(
+    "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors | ConvertTo-Json"
+  );
+  if (info) {
+    return {
+      processor: info.Name.trim(),
+      physicalCores: info.NumberOfCores,
+      logicalCores: info.NumberOfLogicalProcessors,
+    };
+  }
+  // Fallback
+  return {
+    processor: os.cpus()[0]?.model || "unknown",
+    physicalCores: 0,
+    logicalCores: os.cpus().length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Disk
+// ---------------------------------------------------------------------------
+
+interface DiskInfo {
+  Size: string;
+  FreeSpace: string;
+}
+
+async function getDiskInfo(): Promise<{ totalGb: number; usedGb: number; freeGb: number; usagePct: number }> {
+  const info = await psJson<DiskInfo>(
+    "Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='C:'\" | Select-Object Size,FreeSpace | ConvertTo-Json"
+  );
+  if (info) {
+    const totalBytes = parseInt(info.Size, 10);
+    const freeBytes = parseInt(info.FreeSpace, 10);
+    const totalGb = Math.round((totalBytes / 1024 ** 3) * 10) / 10;
+    const freeGb = Math.round((freeBytes / 1024 ** 3) * 10) / 10;
+    const usedGb = Math.round((totalGb - freeGb) * 10) / 10;
+    const usagePct = totalGb ? Math.round((usedGb / totalGb) * 100 * 10) / 10 : 0;
+    return { totalGb, usedGb, freeGb, usagePct };
+  }
+  return { totalGb: 0, usedGb: 0, freeGb: 0, usagePct: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// GPU
+// ---------------------------------------------------------------------------
+
+interface GpuEntry {
+  Name: string;
+}
+
+async function getGpuInfo(): Promise<string[]> {
+  const raw = await psJson<GpuEntry | GpuEntry[]>(
+    "Get-CimInstance Win32_VideoController | Select-Object Name | ConvertTo-Json"
+  );
+  if (!raw) return [];
+  const entries = Array.isArray(raw) ? raw : [raw];
+  return entries.map((e) => e.Name).filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// Runtimes / toolchain detection
+// ---------------------------------------------------------------------------
+
+function parseFirstLine(output: string): string {
+  for (const line of output.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
+}
+
+function looksLikeError(text: string): boolean {
+  const lowered = text.toLowerCase();
+  const hints = [
+    "could not be loaded",
+    "could not load",
+    "is not recognized",
+    "is not internal",
+    "not found",
+    "access is denied",
+    "cannot find",
+    "no such file",
+    "error",
+    "failed to",
+  ];
+  return hints.some((h) => lowered.includes(h));
+}
+
+interface RuntimeCheck {
+  label: string;
+  executable: string;
+  args: string[];
+  parser: (output: string) => string;
+}
+
+const RUNTIME_CHECKS: RuntimeCheck[] = [
+  // ---- Languages / Runtimes ----
+  { label: "Python", executable: "python", args: ["--version"], parser: parseFirstLine },
+  { label: "R", executable: "R", args: ["--version"], parser: parseFirstLine },
+  { label: "Node.js", executable: "node", args: ["--version"], parser: parseFirstLine },
+  { label: "Deno", executable: "deno", args: ["--version"], parser: parseFirstLine },
+  { label: "Bun", executable: "bun", args: ["--version"], parser: parseFirstLine },
+  { label: "Rust", executable: "rustc", args: ["--version"], parser: parseFirstLine },
+  { label: "Go", executable: "go", args: ["version"], parser: parseFirstLine },
+  { label: "Java (JRE)", executable: "java", args: ["-version"], parser: parseFirstLine },
+  { label: "Java (JDK)", executable: "javac", args: ["-version"], parser: parseFirstLine },
+  { label: "Julia", executable: "julia", args: ["--version"], parser: parseFirstLine },
+  { label: "Ruby", executable: "ruby", args: ["--version"], parser: parseFirstLine },
+  { label: "PHP", executable: "php", args: ["--version"], parser: parseFirstLine },
+  { label: "Perl", executable: "perl", args: ["--version"], parser: parseFirstLine },
+  { label: "Lua", executable: "lua", args: ["-v"], parser: parseFirstLine },
+  { label: "Zig", executable: "zig", args: ["version"], parser: parseFirstLine },
+  { label: "Kotlin", executable: "kotlin", args: ["-version"], parser: parseFirstLine },
+  { label: "Kotlin (kapt)", executable: "kotlinc", args: ["-version"], parser: parseFirstLine },
+  { label: "Dart", executable: "dart", args: ["--version"], parser: parseFirstLine },
+  { label: "Scala", executable: "scala", args: ["-version"], parser: parseFirstLine },
+  { label: "Erlang", executable: "erl", args: ["-version"], parser: parseFirstLine },
+  { label: "Elixir", executable: "elixir", args: ["--version"], parser: parseFirstLine },
+  { label: "Haskell (GHC)", executable: "ghc", args: ["--version"], parser: parseFirstLine },
+  { label: "Crystal", executable: "crystal", args: ["--version"], parser: parseFirstLine },
+  { label: "OCaml", executable: "ocaml", args: ["--version"], parser: parseFirstLine },
+  { label: "Nim", executable: "nim", args: ["--version"], parser: parseFirstLine },
+  { label: "Swift", executable: "swift", args: ["--version"], parser: parseFirstLine },
+  { label: "Racket", executable: "racket", args: ["--version"], parser: parseFirstLine },
+  { label: "Clojure (clj)", executable: "clj", args: ["--version"], parser: parseFirstLine },
+  { label: "Groovy", executable: "groovy", args: ["--version"], parser: parseFirstLine },
+  { label: "COBOL (GnuCOBOL)", executable: "cobc", args: ["--version"], parser: parseFirstLine },
+  { label: "Fortran", executable: "gfortran", args: ["--version"], parser: parseFirstLine },
+  { label: "Octave", executable: "octave", args: ["--version"], parser: parseFirstLine },
+  // ---- Package managers ----
+  { label: "npm", executable: "npm", args: ["--version"], parser: parseFirstLine },
+  { label: "Yarn", executable: "yarn", args: ["--version"], parser: parseFirstLine },
+  { label: "pnpm", executable: "pnpm", args: ["--version"], parser: parseFirstLine },
+  { label: "pip", executable: "pip", args: ["--version"], parser: parseFirstLine },
+  { label: "pip3", executable: "pip3", args: ["--version"], parser: parseFirstLine },
+  { label: "Conda", executable: "conda", args: ["--version"], parser: parseFirstLine },
+  { label: "Chocolatey", executable: "choco", args: ["--version"], parser: parseFirstLine },
+  { label: "Scoop", executable: "scoop", args: ["--version"], parser: parseFirstLine },
+  { label: "Homebrew", executable: "brew", args: ["--version"], parser: parseFirstLine },
+  { label: "Cargo", executable: "cargo", args: ["--version"], parser: parseFirstLine },
+  { label: "vcpkg", executable: "vcpkg", args: ["--version"], parser: parseFirstLine },
+  { label: "NuGet", executable: "nuget", args: ["help"], parser: parseFirstLine },
+  // ---- .NET ecosystem ----
+  { label: ".NET SDK", executable: "dotnet", args: ["--version"], parser: parseFirstLine },
+  { label: "MSBuild", executable: "msbuild", args: ["-version"], parser: parseFirstLine },
+  { label: "PowerShell (.NET)", executable: "pwsh", args: ["--version"], parser: parseFirstLine },
+  // ---- Build systems / Compilers ----
+  { label: "GCC", executable: "gcc", args: ["--version"], parser: parseFirstLine },
+  { label: "G++", executable: "g++", args: ["--version"], parser: parseFirstLine },
+  { label: "Clang", executable: "clang", args: ["--version"], parser: parseFirstLine },
+  { label: "CMake", executable: "cmake", args: ["--version"], parser: parseFirstLine },
+  { label: "Make", executable: "make", args: ["--version"], parser: parseFirstLine },
+  { label: "Ninja", executable: "ninja", args: ["--version"], parser: parseFirstLine },
+  { label: "Meson", executable: "meson", args: ["--version"], parser: parseFirstLine },
+  { label: "Gradle", executable: "gradle", args: ["--version"], parser: parseFirstLine },
+  { label: "Maven", executable: "mvn", args: ["--version"], parser: parseFirstLine },
+  { label: "Ant", executable: "ant", args: ["-version"], parser: parseFirstLine },
+  { label: "Bazel", executable: "bazel", args: ["version"], parser: parseFirstLine },
+  { label: "Scons", executable: "scons", args: ["--version"], parser: parseFirstLine },
+  { label: "Buck2", executable: "buck2", args: ["--version"], parser: parseFirstLine },
+  { label: "NMake", executable: "nmake", args: ["/?"], parser: parseFirstLine },
+  // ---- Version control ----
+  { label: "Git", executable: "git", args: ["--version"], parser: parseFirstLine },
+  { label: "SVN", executable: "svn", args: ["--version"], parser: parseFirstLine },
+  { label: "Mercurial", executable: "hg", args: ["--version"], parser: parseFirstLine },
+  // ---- Databases ----
+  { label: "MySQL", executable: "mysql", args: ["--version"], parser: parseFirstLine },
+  { label: "PostgreSQL", executable: "psql", args: ["--version"], parser: parseFirstLine },
+  { label: "SQLite", executable: "sqlite3", args: ["--version"], parser: parseFirstLine },
+  { label: "Redis", executable: "redis-cli", args: ["--version"], parser: parseFirstLine },
+  { label: "MongoDB", executable: "mongosh", args: ["--version"], parser: parseFirstLine },
+  { label: "MongoDB (legacy)", executable: "mongo", args: ["--version"], parser: parseFirstLine },
+  { label: "SQL Server (sqlcmd)", executable: "sqlcmd", args: ["-?"], parser: parseFirstLine },
+  { label: "DuckDB", executable: "duckdb", args: ["--version"], parser: parseFirstLine },
+  { label: "Cassandra (cqlsh)", executable: "cqlsh", args: ["--version"], parser: parseFirstLine },
+  { label: "InfluxDB", executable: "influx", args: ["version"], parser: parseFirstLine },
+  // ---- Cloud / IaC / DevOps ----
+  { label: "Docker", executable: "docker", args: ["--version"], parser: parseFirstLine },
+  { label: "Docker Compose", executable: "docker-compose", args: ["--version"], parser: parseFirstLine },
+  { label: "Kubernetes (kubectl)", executable: "kubectl", args: ["version", "--client"], parser: parseFirstLine },
+  { label: "Helm", executable: "helm", args: ["version", "--short"], parser: parseFirstLine },
+  { label: "Terraform", executable: "terraform", args: ["--version"], parser: parseFirstLine },
+  { label: "OpenTofu", executable: "tofu", args: ["--version"], parser: parseFirstLine },
+  { label: "Pulumi", executable: "pulumi", args: ["version"], parser: parseFirstLine },
+  { label: "Ansible", executable: "ansible", args: ["--version"], parser: parseFirstLine },
+  { label: "Vagrant", executable: "vagrant", args: ["--version"], parser: parseFirstLine },
+  { label: "Minikube", executable: "minikube", args: ["version"], parser: parseFirstLine },
+  { label: "AWS CLI", executable: "aws", args: ["--version"], parser: parseFirstLine },
+  { label: "Azure CLI", executable: "az", args: ["version"], parser: parseFirstLine },
+  { label: "Google Cloud SDK", executable: "gcloud", args: ["--version"], parser: parseFirstLine },
+  { label: "Cloudflare (wrangler)", executable: "wrangler", args: ["--version"], parser: parseFirstLine },
+  { label: "Firebase CLI", executable: "firebase", args: ["--version"], parser: parseFirstLine },
+  { label: "Heroku CLI", executable: "heroku", args: ["--version"], parser: parseFirstLine },
+  { label: "Vault", executable: "vault", args: ["--version"], parser: parseFirstLine },
+  { label: "Consul", executable: "consul", args: ["--version"], parser: parseFirstLine },
+  { label: "Nomad", executable: "nomad", args: ["--version"], parser: parseFirstLine },
+  { label: "Packer", executable: "packer", args: ["--version"], parser: parseFirstLine },
+  { label: "Serverless", executable: "serverless", args: ["--version"], parser: parseFirstLine },
+  { label: "CDK (AWS CDK)", executable: "cdk", args: ["--version"], parser: parseFirstLine },
+  { label: "Fly CLI", executable: "flyctl", args: ["--version"], parser: parseFirstLine },
+  { label: "Railway CLI", executable: "railway", args: ["--version"], parser: parseFirstLine },
+  { label: "Netlify CLI", executable: "netlify", args: ["--version"], parser: parseFirstLine },
+  { label: "Vercel CLI", executable: "vercel", args: ["--version"], parser: parseFirstLine },
+  { label: "Argo CD CLI", executable: "argocd", args: ["--version"], parser: parseFirstLine },
+  // ---- Shells / Terminals ----
+  { label: "PowerShell 5+", executable: "powershell", args: ["-Command", "$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
+  { label: "PowerShell 7+", executable: "pwsh", args: ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
+  { label: "Bash", executable: "bash", args: ["--version"], parser: parseFirstLine },
+  { label: "Zsh", executable: "zsh", args: ["--version"], parser: parseFirstLine },
+  { label: "Fish", executable: "fish", args: ["--version"], parser: parseFirstLine },
+  { label: "Nushell", executable: "nu", args: ["--version"], parser: parseFirstLine },
+  { label: "Yori", executable: "yori", args: ["--version"], parser: parseFirstLine },
+  // ---- CLI utilities ----
+  { label: "curl", executable: "curl", args: ["--version"], parser: parseFirstLine },
+  { label: "wget", executable: "wget", args: ["--version"], parser: parseFirstLine },
+  { label: "jq", executable: "jq", args: ["--version"], parser: parseFirstLine },
+  { label: "yq", executable: "yq", args: ["--version"], parser: parseFirstLine },
+  { label: "ripgrep (rg)", executable: "rg", args: ["--version"], parser: parseFirstLine },
+  { label: "fd", executable: "fd", args: ["--version"], parser: parseFirstLine },
+  { label: "bat", executable: "bat", args: ["--version"], parser: parseFirstLine },
+  { label: "eza", executable: "eza", args: ["--version"], parser: parseFirstLine },
+  { label: "delta", executable: "delta", args: ["--version"], parser: parseFirstLine },
+  { label: "tig", executable: "tig", args: ["--version"], parser: parseFirstLine },
+  { label: "OpenSSL", executable: "openssl", args: ["version"], parser: parseFirstLine },
+  { label: "ssh", executable: "ssh", args: ["-V"], parser: parseFirstLine },
+  { label: "rsync", executable: "rsync", args: ["--version"], parser: parseFirstLine },
+  { label: "tmux", executable: "tmux", args: ["--version"], parser: parseFirstLine },
+  { label: "screen", executable: "screen", args: ["--version"], parser: parseFirstLine },
+  { label: "htop", executable: "htop", args: ["--version"], parser: parseFirstLine },
+  { label: "btop", executable: "btop", args: ["--version"], parser: parseFirstLine },
+  { label: "ncdu", executable: "ncdu", args: ["--version"], parser: parseFirstLine },
+  { label: "duf", executable: "duf", args: ["--version"], parser: parseFirstLine },
+  { label: "procs", executable: "procs", args: ["--version"], parser: parseFirstLine },
+  { label: "hyperfine", executable: "hyperfine", args: ["--version"], parser: parseFirstLine },
+  { label: "just", executable: "just", args: ["--version"], parser: parseFirstLine },
+  { label: "fzf", executable: "fzf", args: ["--version"], parser: parseFirstLine },
+  { label: "zoxide", executable: "zoxide", args: ["--version"], parser: parseFirstLine },
+  { label: "starship", executable: "starship", args: ["--version"], parser: parseFirstLine },
+  { label: "lazygit", executable: "lazygit", args: ["--version"], parser: parseFirstLine },
+  { label: "lazydocker", executable: "lazydocker", args: ["--version"], parser: parseFirstLine },
+  { label: "doggo (DNS)", executable: "doggo", args: ["--version"], parser: parseFirstLine },
+  { label: "httpie", executable: "http", args: ["--version"], parser: parseFirstLine },
+  { label: "xh", executable: "xh", args: ["--version"], parser: parseFirstLine },
+  // ---- Media / Graphics ----
+  { label: "FFmpeg", executable: "ffmpeg", args: ["--version"], parser: parseFirstLine },
+  { label: "FFprobe", executable: "ffprobe", args: ["--version"], parser: parseFirstLine },
+  { label: "ImageMagick", executable: "magick", args: ["--version"], parser: parseFirstLine },
+  { label: "Graphviz (dot)", executable: "dot", args: ["-V"], parser: parseFirstLine },
+  { label: "ExifTool", executable: "exiftool", args: ["-ver"], parser: parseFirstLine },
+  { label: "SoX", executable: "sox", args: ["--version"], parser: parseFirstLine },
+  { label: "yt-dlp", executable: "yt-dlp", args: ["--version"], parser: parseFirstLine },
+  { label: "7-Zip", executable: "7z", args: ["--help"], parser: parseFirstLine },
+  { label: "Inkscape", executable: "inkscape", args: ["--version"], parser: parseFirstLine },
+  { label: "Blender", executable: "blender", args: ["--version"], parser: parseFirstLine },
+  // ---- Editors / IDEs (CLI launchers) ----
+  { label: "VS Code", executable: "code", args: ["--version"], parser: parseFirstLine },
+  { label: "Vim", executable: "vim", args: ["--version"], parser: parseFirstLine },
+  { label: "Neovim", executable: "nvim", args: ["--version"], parser: parseFirstLine },
+  { label: "Emacs", executable: "emacs", args: ["--version"], parser: parseFirstLine },
+  { label: "Sublime Text", executable: "subl", args: ["--version"], parser: parseFirstLine },
+  { label: "JetBrains Toolbox", executable: "jetbrains-toolbox", args: ["--version"], parser: parseFirstLine },
+  // ---- Reverse engineering / Security ----
+  { label: "GDB", executable: "gdb", args: ["--version"], parser: parseFirstLine },
+  { label: "LLDB", executable: "lldb", args: ["--version"], parser: parseFirstLine },
+  { label: "Objdump", executable: "objdump", args: ["--version"], parser: parseFirstLine },
+  { label: "Strace", executable: "strace", args: ["--version"], parser: parseFirstLine },
+  { label: "Radare2", executable: "r2", args: ["--version"], parser: parseFirstLine },
+  { label: "Ghidra (server)", executable: "ghidraserver", args: ["--version"], parser: parseFirstLine },
+  { label: "Nmap", executable: "nmap", args: ["--version"], parser: parseFirstLine },
+  { label: "Wireshark (tshark)", executable: "tshark", args: ["--version"], parser: parseFirstLine },
+  { label: "Metasploit (msfconsole)", executable: "msfconsole", args: ["--version"], parser: parseFirstLine },
+  { label: "SQLMap", executable: "sqlmap", args: ["--version"], parser: parseFirstLine },
+  { label: "Hashcat", executable: "hashcat", args: ["--version"], parser: parseFirstLine },
+  { label: "John (JtR)", executable: "john", args: ["--version"], parser: parseFirstLine },
+  { label: "Aircrack-ng", executable: "aircrack-ng", args: ["--version"], parser: parseFirstLine },
+  { label: "YARA", executable: "yara", args: ["--version"], parser: parseFirstLine },
+  { label: "Binwalk", executable: "binwalk", args: ["--version"], parser: parseFirstLine },
+  { label: "Apktool", executable: "apktool", args: ["--version"], parser: parseFirstLine },
+  { label: "Jadx", executable: "jadx", args: ["--version"], parser: parseFirstLine },
+  { label: "Wireshark (dumpcap)", executable: "dumpcap", args: ["--version"], parser: parseFirstLine },
+];
+
+/** Check if an executable exists on PATH using `where` (Windows) or `which`. */
+async function whichExe(exe: string): Promise<boolean> {
+  try {
+    const cmd = process.platform === "win32" ? `where ${exe}` : `which ${exe}`;
+    await execAsync(cmd, { timeout: 5_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Run an executable with args and return parsed version string. */
+async function queryVersion(exe: string, args: string[], timeout = 15_000): Promise<string | null> {
+  try {
+    const { stdout, stderr } = await execAsync(`"${exe}" ${args.join(" ")}`, {
+      timeout,
+      encoding: "utf-8",
+    });
+    const raw = (stdout || stderr || "").trim();
+    return raw || null;
+  } catch {
+    return null;
+  }
+}
+
+async function detectRuntimesDirect(): Promise<Record<string, string>> {
+  const found: Record<string, string> = {};
+
+  // Run checks in batches to avoid overwhelming the system
+  const batchSize = 20;
+  for (let i = 0; i < RUNTIME_CHECKS.length; i += batchSize) {
+    const batch = RUNTIME_CHECKS.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      batch.map(async (check) => {
+        const exists = await whichExe(check.executable);
+        if (!exists) return { label: check.label, version: null };
+
+        const raw = await queryVersion(check.executable, check.args);
+        if (!raw) return { label: check.label, version: "(detected, no version info)" };
+
+        const version = check.parser(raw);
+        if (version && !looksLikeError(version)) {
+          return { label: check.label, version };
+        }
+        return { label: check.label, version: "(detected, no version info)" };
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value.version) {
+        found[result.value.label] = result.value.version;
+      }
+    }
+  }
+
+  return found;
+}
+
+let runtimeCache: Record<string, string> | null = null;
+
+export async function detectRuntimes(forceRefresh = false): Promise<Record<string, string>> {
+  if (runtimeCache && !forceRefresh) return runtimeCache;
+  runtimeCache = await detectRuntimesDirect();
+  return runtimeCache;
+}
+
+// ---------------------------------------------------------------------------
+// Category definitions + formatter
+// ---------------------------------------------------------------------------
+
+type CategoryValue = string | number | string[] | Record<string, string>;
+
+interface CategoryItem {
+  key: string;
+  getValue: () => Promise<CategoryValue> | CategoryValue;
+}
+
+interface Category {
+  label: string;
+  items: CategoryItem[];
+}
+
+export const CATEGORIES: Record<string, Category> = {
+  system: {
+    label: "System",
+    items: [
+      { key: "system", getValue: () => os.platform() },
+      { key: "release", getValue: () => os.release() },
+      { key: "version", getValue: () => os.version() },
+      { key: "hostname", getValue: () => os.hostname() },
+      { key: "machine", getValue: () => os.arch() },
+      { key: "uptime_days", getValue: () => getUptimeDays() },
+    ],
+  },
+  cpu: {
+    label: "CPU",
+    items: [
+      { key: "processor", getValue: async () => (await getCpuInfo()).processor },
+      { key: "physical_cores", getValue: async () => (await getCpuInfo()).physicalCores },
+      { key: "logical_cores", getValue: async () => (await getCpuInfo()).logicalCores },
+    ],
+  },
+  memory: {
+    label: "Memory",
+    items: [
+      { key: "total_gb", getValue: async () => (await getMemoryStatus()).totalGb },
+      { key: "available_gb", getValue: async () => (await getMemoryStatus()).availableGb },
+      { key: "usage_pct", getValue: async () => (await getMemoryStatus()).usagePct },
+    ],
+  },
+  disk: {
+    label: "Disk (C:\\)",
+    items: [
+      { key: "total_gb", getValue: async () => (await getDiskInfo()).totalGb },
+      { key: "used_gb", getValue: async () => (await getDiskInfo()).usedGb },
+      { key: "free_gb", getValue: async () => (await getDiskInfo()).freeGb },
+      { key: "usage_pct", getValue: async () => (await getDiskInfo()).usagePct },
+    ],
+  },
+  gpu: {
+    label: "GPU",
+    items: [
+      { key: "adapters", getValue: () => getGpuInfo() },
+    ],
+  },
+  runtimes: {
+    label: "Runtimes & Toolchains",
+    items: [
+      { key: "detected", getValue: () => detectRuntimes() },
+    ],
+  },
+};
+
+export async function fmt(catName: string): Promise<string> {
+  const cat = CATEGORIES[catName];
+  if (!cat) return `(unknown category: ${catName})`;
+
+  const lines: string[] = [];
+  for (const item of cat.items) {
+    const val = await item.getValue();
+    if (Array.isArray(val)) {
+      const valStr = val.length > 0 ? val.join(", ") : "(none)";
+      lines.push(`${item.key}: ${valStr}`);
+    } else if (typeof val === "object" && val !== null) {
+      for (const [k, v] of Object.entries(val)) {
+        lines.push(`  ${k}: ${v}`);
+      }
+    } else {
+      lines.push(`${item.key}: ${val}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Shared spawn helper for code-execution tools
+// ---------------------------------------------------------------------------
+
+export interface SpawnResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  timedOut: boolean;
+}
+
+/** Spawn a process with timeout and capture stdout/stderr. */
+export function spawnProcess(
+  command: string,
+  args: string[],
+  timeoutMs: number = 10_000
+): Promise<SpawnResult> {
+  return new Promise((resolve) => {
+    const proc = spawn(command, args, {
+      timeout: timeoutMs,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      proc.kill("SIGTERM");
+    }, timeoutMs);
+
+    proc.stdout.on("data", (data: Buffer) => {
+      stdout += data.toString("utf-8");
+    });
+
+    proc.stderr.on("data", (data: Buffer) => {
+      stderr += data.toString("utf-8");
+    });
+
+    proc.on("close", (code: number | null) => {
+      clearTimeout(timer);
+      resolve({
+        stdout,
+        stderr,
+        exitCode: code ?? 1,
+        timedOut,
+      });
+    });
+
+    proc.on("error", () => {
+      clearTimeout(timer);
+      resolve({
+        stdout,
+        stderr,
+        exitCode: 1,
+        timedOut,
+      });
+    });
+  });
+}
+
+/** Truncate a string to MAX_RESULT_LEN characters. */
+export function truncate(s: string, maxLen: number = 2000): string {
+  return s.length <= maxLen ? s : s.slice(0, maxLen) + "... (truncated)";
+}
