@@ -56,8 +56,10 @@ def run_shell(command: str) -> str:
             return f"Error: blocked dangerous command pattern: {blocked}"
 
     try:
+        # Force UTF-8 output encoding for pwsh to handle non-ASCII correctly
+        wrapped = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; " + command
         proc = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command", command],
+            ["pwsh", "-NoProfile", "-Command", wrapped],
             capture_output=True,
             text=True,
             timeout=10,

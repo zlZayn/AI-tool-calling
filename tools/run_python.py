@@ -58,7 +58,7 @@ def _truncate(s: str) -> str:
     },
 )
 def run_python(expression: str) -> str:
-    # Try eval first (single expression)
+    # Try eval first — handles bare expressions like `1+1`
     try:
         code = f"print(eval({expression!r}))"
         proc = subprocess.run(
@@ -66,13 +66,22 @@ def run_python(expression: str) -> str:
             capture_output=True,
             text=True,
             timeout=10,
+            encoding="utf-8",
+            errors="replace",
         )
-        if proc.returncode == 0 and proc.stdout.strip():
-            return _truncate(proc.stdout.strip())
+        if proc.returncode == 0:
+            stdout = proc.stdout.strip()
+            # Strip trailing "None" from eval(print(...)) pattern
+            if stdout.endswith("\nNone"):
+                stdout = stdout[:-5].strip()
+            elif stdout == "None":
+                stdout = ""
+            if stdout:
+                return _truncate(stdout)
     except (SyntaxError, subprocess.TimeoutExpired):
         pass
 
-    # Multi-line code
+    # Fallback: exec wrapper (for statements, multi-line, etc.)
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False, encoding="utf-8"
     ) as f:
@@ -85,6 +94,8 @@ def run_python(expression: str) -> str:
             capture_output=True,
             text=True,
             timeout=10,
+            encoding="utf-8",
+            errors="replace",
         )
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()

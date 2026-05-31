@@ -4,15 +4,15 @@
       "type": "stdio",
       "command": "python",
       "args": [
-        "d:/PythonDirectory/AI-tool-calling/run_code_server.py"
+        "servers/run_code_server.py"
       ],
       "env": {}
     },
-    "get-system-info": {
+    "get-env-info": {
       "type": "stdio",
       "command": "python",
       "args": [
-        "d:/PythonDirectory/AI-tool-calling/get_system_info_server.py"
+        "servers/get_env_info_server.py"
       ],
       "env": {}
     }

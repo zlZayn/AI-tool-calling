@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 class Agent:
-    def __init__(self, config: str = "config.json"):
+    def __init__(self, config: str = "config/config.json"):
         cfg_path = os.path.join(os.path.dirname(__file__), "..", config)
         with open(cfg_path) as f:
             cfg = json.load(f)

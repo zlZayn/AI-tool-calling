@@ -1,10 +1,19 @@
-"""MCP server — expose system information tools.
+"""MCP server — code sandbox runtimes: Python, R, Shell.
 
 Tools:
-    get_host_info — basic host machine info (OS, processor, memory)
+    run_python — execute Python code in a sandbox
+    run_r      — execute R code in a sandbox
+    run_shell  — run PowerShell commands
 """
 
 import asyncio
+import os
+import sys
+
+# Ensure project root is on sys.path (supports relative paths in .mcp.json)
+_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _proj_root not in sys.path:
+    sys.path.insert(0, _proj_root)
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -12,7 +21,9 @@ from mcp.types import TextContent, Tool
 
 from tools import load_all
 
-server = Server("get-system-info")
+_SANDBOX_TOOLS = frozenset(["run_python", "run_r", "run_shell"])
+
+server = Server("run-code")
 
 
 @server.list_tools()
@@ -25,12 +36,13 @@ async def list_tools() -> list[Tool]:
             inputSchema=t.parameters,
         )
         for t in tools.values()
-        if t.name == "get_host_info"
+        if t.name in _SANDBOX_TOOLS
     ]
 
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    """Execute a tool and return the result."""
     tools = load_all()
     if name not in tools:
         return [TextContent(type="text", text=f"Error: unknown tool '{name}'")]
