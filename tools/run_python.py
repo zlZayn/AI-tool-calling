@@ -27,7 +27,7 @@ def _truncate(s: str) -> str:
 
 
 @tool(
-    name="python",
+    name="run_python",
     description=(
         "Run Python code. Use for ANY computation, data processing, algorithm, or task. "
         "Full Python access — import any installed package (numpy, pandas, requests, etc.). "
@@ -57,7 +57,7 @@ def _truncate(s: str) -> str:
         "required": ["expression"],
     },
 )
-def python(expression: str) -> str:
+def run_python(expression: str) -> str:
     # Try eval first (single expression)
     try:
         code = f"print(eval({expression!r}))"

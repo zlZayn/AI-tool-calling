@@ -23,7 +23,7 @@ def _truncate(s: str) -> str:
 
 
 @tool(
-    name="shell",
+    name="run_shell",
     description=(
         "Run shell commands via PowerShell. Use for file operations, system info, "
         "process management, or any CLI task. Timeout: 10 seconds.\n"
@@ -48,7 +48,7 @@ def _truncate(s: str) -> str:
         "required": ["command"],
     },
 )
-def shell(command: str) -> str:
+def run_shell(command: str) -> str:
     # Basic safety check
     cmd_lower = command.lower()
     for blocked in _BLOCKED:

@@ -33,7 +33,7 @@ def _clean_r_output(s: str) -> str:
 
 
 @tool(
-    name="r",
+    name="run_r",
     description=(
         "Run R code. Use for statistical analysis, data visualization, or any R task. "
         "Full R access — library any installed package (tidyverse, tidymodels, survival, etc.). "
@@ -63,7 +63,7 @@ def _clean_r_output(s: str) -> str:
         "required": ["expression"],
     },
 )
-def r(expression: str) -> str:
+def run_r(expression: str) -> str:
     # Multi-line code: skip Rscript -e, use temp file directly
     # Rscript -e crashes on complex multi-line code (especially with non-ASCII chars)
     if "\n" in expression:

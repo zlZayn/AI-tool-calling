@@ -1,8 +1,6 @@
 # AI-tool-calling
 
-[English](README.md) | [简体中文](README_zh.md)
-
-极简工具调用框架。通过 OpenAI 兼容 API 让 LLM 调用本地工具。
+极简工具调用框架。CLI + MCP 双模式运行。
 
 ## 快速开始
 
@@ -22,7 +20,7 @@ python tool_call.py "创建一个正态分布序列，CSV 格式"
 | `base_url` | API 地址 |
 | `model` | 模型名称 |
 
-## CLI
+## CLI 模式
 
 ```bash
 python tool_call.py "当前目录有哪些文件"
@@ -37,22 +35,41 @@ python tool_call.py --stream "斐波那契第30项"
 | `--force_tool` | 强制 LLM 调用工具后再回答 |
 | `--list_tools` | 列出可用工具并退出 |
 
+## MCP 模式
+
+注册了两个 MCP server（配置在 `.mcp.json`）：
+
+| Server | 工具 | 说明 |
+| --- | --- | --- |
+| `run-code` | `run_python`, `run_r`, `run_shell` | 沙箱执行代码 |
+| `get-system-info` | `get_host_info` | 获取主机信息（系统、处理器、内存等） |
+
+可在任意 MCP 兼容客户端中使用（Claude Desktop、Claude Code 等）。
+
 ## 添加工具
 
-在 `tools/` 下新建 `.py`，用 `@tool` 定义即可，重启自动发现。工具描述会引导 LLM 的工作流和输出格式。
+在 `tools/` 下新建 `.py`，用 `@tool` 装饰器定义即可，启动时自动发现。工具描述会引导 LLM 的工作流和输出格式。
 
-## 结构
+## 项目结构
 
 ```text
-lib/
-  __init__.py         包初始化
-  agent.py            Agent 类
-tools/
-  __init__.py         工具注册与自动发现
-  python_sandbox.py   Python 代码执行
-  r_sandbox.py        R 代码执行
-  shell_sandbox.py    Shell 命令执行
-tool_call.py          CLI 接口
-config_example.json   API 配置模板
-requirements.txt
+AI-tool-calling/
+├── .mcp.json
+├── README.md
+├── README_zh.md
+├── config.json
+├── config_example.json
+├── get_system_info_server.py
+├── lib/
+│   ├── __init__.py
+│   └── agent.py
+├── requirements.txt
+├── run_code_server.py
+├── tool_call.py
+└── tools/
+    ├── __init__.py
+    ├── run_python.py
+    ├── run_r.py
+    ├── run_shell.py
+    └── get_host_info.py
 ```

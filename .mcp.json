@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "run-code": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "d:/PythonDirectory/AI-tool-calling/run_code_server.py"
+      ],
+      "env": {}
+    },
+    "get-system-info": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "d:/PythonDirectory/AI-tool-calling/get_system_info_server.py"
+      ],
+      "env": {}
+    }
+  }
+}

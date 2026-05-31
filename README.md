@@ -1,8 +1,6 @@
 # AI-tool-calling
 
-[English](README.md) | [简体中文](README_zh.md)
-
-Minimal tool calling framework. LLM + local tools via OpenAI-compatible API.
+Minimal tool calling framework. CLI + MCP dual-mode.
 
 ## Quick Start
 
@@ -22,7 +20,7 @@ Edit `config.json`:
 | `base_url` | API endpoint |
 | `model` | Model name |
 
-## CLI
+## CLI Mode
 
 ```bash
 python tool_call.py "what files are here"
@@ -37,22 +35,41 @@ python tool_call.py --stream "fibonacci 30th"
 | `--force_tool` | Force the LLM to call a tool before answering |
 | `--list_tools` | List available tools and exit |
 
+## MCP Mode
+
+Two MCP servers registered in `.mcp.json`:
+
+| Server | Tools | Description |
+| --- | --- | --- |
+| `run-code` | `run_python`, `run_r`, `run_shell` | Execute code in sandboxed runtimes |
+| `get-system-info` | `get_host_info` | Fetch host machine info (OS, processor, memory) |
+
+Connect via any MCP-compatible client (Claude Desktop, Claude Code, etc.).
+
 ## Adding Tools
 
-Drop a `.py` in `tools/` with `@tool` — auto-discovered on restart. Tool descriptions guide the LLM's workflow and output format.
+Drop a `.py` in `tools/` with `@tool` decorator — auto-discovered on startup. Tool descriptions guide the LLM's workflow and output format.
 
-## Structure
+## Project Structure
 
 ```text
-lib/
-  __init__.py         Package init
-  agent.py            Agent class
-tools/
-  __init__.py         Tool registry and auto-discovery
-  python_sandbox.py   Python code execution
-  r_sandbox.py        R code execution
-  shell_sandbox.py    Shell command execution
-tool_call.py          CLI interface
-config_example.json   API config template
-requirements.txt
+AI-tool-calling/
+├── .mcp.json
+├── README.md
+├── README_zh.md
+├── config.json
+├── config_example.json
+├── get_system_info_server.py
+├── lib/
+│   ├── __init__.py
+│   └── agent.py
+├── requirements.txt
+├── run_code_server.py
+├── tool_call.py
+└── tools/
+    ├── __init__.py
+    ├── run_python.py
+    ├── run_r.py
+    ├── run_shell.py
+    └── get_host_info.py
 ```
