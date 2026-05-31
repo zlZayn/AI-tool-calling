@@ -76,6 +76,7 @@ Drop a `.py` in `tools/` with `@tool` decorator — auto-discovered on startup. 
 
 ```text
 AI-tool-calling/
+├── .gitignore
 ├── .mcp.json
 ├── README.md
 ├── README_zh.md
@@ -95,6 +96,7 @@ AI-tool-calling/
 ├── tool_call.py
 └── tools/
     ├── __init__.py
+    ├── DEV_NOTES.md
     ├── _env_helpers.py
     ├── get_cpu_info.py
     ├── get_disk_info.py
