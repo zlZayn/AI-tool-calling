@@ -1,5 +1,7 @@
 # AI-tool-calling
 
+[English](README.md) | [简体中文](README_zh.md)
+
 极简工具调用框架。Tool Calling + MCP 双模式运行。
 
 | 模式 | 配置 | 作用 |

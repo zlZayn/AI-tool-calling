@@ -1,5 +1,7 @@
 # AI-tool-calling
 
+[English](README.md) | [简体中文](README_zh.md)
+
 Minimal tool calling framework. Tool Calling + MCP dual-mode.
 
 | Mode | Config | What it does |
