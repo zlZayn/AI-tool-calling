@@ -5,7 +5,7 @@ import { registerTool } from "./lib/registry.js";
 import { spawnProcess, truncate } from "./lib/env_helpers.js";
 import { SandboxError } from "./lib/errors.js";
 
-const TIMEOUT = 10_000;
+const TIMEOUT = 30_000;
 
 // Dangerous patterns to block (same as Python version)
 const BLOCKED = [
@@ -50,11 +50,10 @@ async function runShell(command: string): Promise<string> {
 
 const DESCRIPTION =
   "Run shell commands via PowerShell. Use for file operations, system info, " +
-  "process management, or any CLI task. Timeout: 10 seconds.\n" +
+  "process management, or any CLI task. Timeout: 30 seconds.\n" +
   "Use PowerShell native syntax (Get-ChildItem, not ls). " +
   "Keep commands simple — max 2 pipe stages. " +
-  "No interactive commands (vim, nano, pause). " +
-  "No destructive operations on system files.";
+  "No interactive commands (vim, nano, pause).";
 
 const COMMAND_DESC =
   "PowerShell command. Native syntax, simple and focused.\n" +

@@ -116,25 +116,32 @@ async function getCpuInfo(): Promise<{ processor: string; physicalCores: number;
 // Disk
 // ---------------------------------------------------------------------------
 
-interface DiskInfo {
+interface DiskInfoEntry {
+  DeviceID: string;
   Size: string;
   FreeSpace: string;
 }
 
-async function getDiskInfo(): Promise<{ totalGb: number; usedGb: number; freeGb: number; usagePct: number }> {
-  const info = await psJson<DiskInfo>(
-    "Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID='C:'\" | Select-Object Size,FreeSpace | ConvertTo-Json"
+type DiskMap = Record<string, Record<string, number>>;
+
+async function getDiskInfo(): Promise<DiskMap> {
+  const raw = await psJson<DiskInfoEntry | DiskInfoEntry[]>(
+    "Get-CimInstance Win32_LogicalDisk | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json"
   );
-  if (info) {
-    const totalBytes = parseInt(info.Size, 10);
-    const freeBytes = parseInt(info.FreeSpace, 10);
-    const totalGb = Math.round((totalBytes / 1024 ** 3) * 10) / 10;
-    const freeGb = Math.round((freeBytes / 1024 ** 3) * 10) / 10;
-    const usedGb = Math.round((totalGb - freeGb) * 10) / 10;
-    const usagePct = totalGb ? Math.round((usedGb / totalGb) * 100 * 10) / 10 : 0;
-    return { totalGb, usedGb, freeGb, usagePct };
+  if (!raw) return {};
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const result: DiskMap = {};
+  for (const entry of entries) {
+    const totalBytes = parseInt(entry.Size, 10);
+    const freeBytes = parseInt(entry.FreeSpace, 10);
+    if (!totalBytes) continue; // skip removable drives with no media
+    const total_gb = Math.round((totalBytes / 1024 ** 3) * 10) / 10;
+    const free_gb = Math.round((freeBytes / 1024 ** 3) * 10) / 10;
+    const used_gb = Math.round((total_gb - free_gb) * 10) / 10;
+    const usage_pct = Math.round((used_gb / total_gb) * 100 * 10) / 10;
+    result[entry.DeviceID] = { total_gb, used_gb, free_gb, usage_pct };
   }
-  return { totalGb: 0, usedGb: 0, freeGb: 0, usagePct: 0 };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,10 +184,23 @@ function looksLikeError(text: string): boolean {
     "access is denied",
     "cannot find",
     "no such file",
-    "error",
+    "error:",
+    "fatal error",
     "failed to",
   ];
   return hints.some((h) => lowered.includes(h));
+}
+
+/** Strip ANSI escape codes from a string. */
+function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+}
+
+/** Parse version from tools that output "tool version X.Y.Z ..." (e.g. FFmpeg). */
+function parseVersionWord(output: string): string {
+  const match = output.match(/version\s+(\S+)/i);
+  return match ? `version ${match[1]}` : parseFirstLine(output);
 }
 
 interface RuntimeCheck {
@@ -199,6 +219,7 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "Bun", executable: "bun", args: ["--version"], parser: parseFirstLine },
   { label: "Rust", executable: "rustc", args: ["--version"], parser: parseFirstLine },
   { label: "Go", executable: "go", args: ["version"], parser: parseFirstLine },
+  { label: "gopls", executable: "gopls", args: ["version"], parser: parseFirstLine },
   { label: "Java (JRE)", executable: "java", args: ["-version"], parser: parseFirstLine },
   { label: "Java (JDK)", executable: "javac", args: ["-version"], parser: parseFirstLine },
   { label: "Julia", executable: "julia", args: ["--version"], parser: parseFirstLine },
@@ -224,6 +245,7 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "COBOL (GnuCOBOL)", executable: "cobc", args: ["--version"], parser: parseFirstLine },
   { label: "Fortran", executable: "gfortran", args: ["--version"], parser: parseFirstLine },
   { label: "Octave", executable: "octave", args: ["--version"], parser: parseFirstLine },
+  { label: "MatLab", executable: "matlab", args: ["-batch", "disp(version)"], parser: parseFirstLine }, // matlab -batch is slow & may hang; presence-only is fine
   // ---- Package managers ----
   { label: "npm", executable: "npm", args: ["--version"], parser: parseFirstLine },
   { label: "Yarn", executable: "yarn", args: ["--version"], parser: parseFirstLine },
@@ -232,7 +254,7 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "pip3", executable: "pip3", args: ["--version"], parser: parseFirstLine },
   { label: "Conda", executable: "conda", args: ["--version"], parser: parseFirstLine },
   { label: "Chocolatey", executable: "choco", args: ["--version"], parser: parseFirstLine },
-  { label: "Scoop", executable: "scoop", args: ["--version"], parser: parseFirstLine },
+  { label: "Scoop", executable: "scoop", args: ["--version"], parser: parseFirstLine }, // version is a git hash on line 2, first line is just a label
   { label: "Homebrew", executable: "brew", args: ["--version"], parser: parseFirstLine },
   { label: "Cargo", executable: "cargo", args: ["--version"], parser: parseFirstLine },
   { label: "vcpkg", executable: "vcpkg", args: ["--version"], parser: parseFirstLine },
@@ -300,13 +322,14 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "Vercel CLI", executable: "vercel", args: ["--version"], parser: parseFirstLine },
   { label: "Argo CD CLI", executable: "argocd", args: ["--version"], parser: parseFirstLine },
   // ---- Shells / Terminals ----
-  { label: "PowerShell 5+", executable: "powershell", args: ["-Command", "$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
+  { label: "PowerShell 5+", executable: "powershell", args: ["-NoProfile", "-Command", "[Console]::OutputEncoding=[Text.Encoding]::UTF8;$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
   { label: "PowerShell 7+", executable: "pwsh", args: ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
   { label: "Bash", executable: "bash", args: ["--version"], parser: parseFirstLine },
   { label: "Zsh", executable: "zsh", args: ["--version"], parser: parseFirstLine },
   { label: "Fish", executable: "fish", args: ["--version"], parser: parseFirstLine },
   { label: "Nushell", executable: "nu", args: ["--version"], parser: parseFirstLine },
   { label: "Yori", executable: "yori", args: ["--version"], parser: parseFirstLine },
+  { label: "Warp", executable: "warp", args: ["--version"], parser: parseFirstLine },
   // ---- CLI utilities ----
   { label: "curl", executable: "curl", args: ["--version"], parser: parseFirstLine },
   { label: "wget", executable: "wget", args: ["--version"], parser: parseFirstLine },
@@ -338,9 +361,20 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "doggo (DNS)", executable: "doggo", args: ["--version"], parser: parseFirstLine },
   { label: "httpie", executable: "http", args: ["--version"], parser: parseFirstLine },
   { label: "xh", executable: "xh", args: ["--version"], parser: parseFirstLine },
+  // ---- Document / Publishing ----
+  { label: "Pandoc", executable: "pandoc", args: ["--version"], parser: parseFirstLine },
+  { label: "Quarto", executable: "quarto", args: ["--version"], parser: parseFirstLine },
+  { label: "TeX Live (tex)", executable: "tex", args: ["--version"], parser: parseFirstLine },
+  { label: "wkhtmltopdf", executable: "wkhtmltopdf", args: ["--version"], parser: parseFirstLine },
+  { label: "Prince XML", executable: "prince", args: ["--version"], parser: parseFirstLine },
+  // ---- AI / LLM tools ----
+  { label: "Ollama", executable: "ollama", args: ["--version"], parser: parseFirstLine }, // needs running daemon for version; presence-only is fine
+  { label: "LM Studio (lms)", executable: "lms", args: ["--version"], parser: parseFirstLine },
+  // ---- Compression ----
+  { label: "Bandizip", executable: "bz", args: ["--version"], parser: parseFirstLine },
   // ---- Media / Graphics ----
-  { label: "FFmpeg", executable: "ffmpeg", args: ["--version"], parser: parseFirstLine },
-  { label: "FFprobe", executable: "ffprobe", args: ["--version"], parser: parseFirstLine },
+  { label: "FFmpeg", executable: "ffmpeg", args: ["-version"], parser: parseVersionWord },
+  { label: "FFprobe", executable: "ffprobe", args: ["-version"], parser: parseVersionWord },
   { label: "ImageMagick", executable: "magick", args: ["--version"], parser: parseFirstLine },
   { label: "Graphviz (dot)", executable: "dot", args: ["-V"], parser: parseFirstLine },
   { label: "ExifTool", executable: "exiftool", args: ["-ver"], parser: parseFirstLine },
@@ -356,6 +390,7 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "Emacs", executable: "emacs", args: ["--version"], parser: parseFirstLine },
   { label: "Sublime Text", executable: "subl", args: ["--version"], parser: parseFirstLine },
   { label: "JetBrains Toolbox", executable: "jetbrains-toolbox", args: ["--version"], parser: parseFirstLine },
+  { label: "Positron", executable: "positron", args: ["--version"], parser: parseFirstLine },
   // ---- Reverse engineering / Security ----
   { label: "GDB", executable: "gdb", args: ["--version"], parser: parseFirstLine },
   { label: "LLDB", executable: "lldb", args: ["--version"], parser: parseFirstLine },
@@ -377,44 +412,155 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "Wireshark (dumpcap)", executable: "dumpcap", args: ["--version"], parser: parseFirstLine },
 ];
 
-/** Check if an executable exists on PATH using `where` (Windows) or `which`. */
-async function whichExe(exe: string): Promise<boolean> {
-  try {
-    const cmd = process.platform === "win32" ? `where ${exe}` : `which ${exe}`;
-    await execAsync(cmd, { timeout: 5_000 });
-    return true;
-  } catch {
-    return false;
-  }
+// ---------------------------------------------------------------------------
+// Environment variable fast-check (zero process spawning)
+// ---------------------------------------------------------------------------
+
+interface EnvCheck {
+  label: string;
+  /** Env vars that must ALL be present to consider this tool detected. */
+  requiredVars: string[];
+  /** Extract version string from env vars. Return null if only presence is known. */
+  parseVersion?: (env: Record<string, string>) => string | null;
 }
 
-/** Run an executable with args and return parsed version string. */
-async function queryVersion(exe: string, args: string[], timeout = 15_000): Promise<string | null> {
+const ENV_CHECKS: EnvCheck[] = [
+  {
+    label: "npm",
+    requiredVars: ["npm_config_npm_version"],
+    parseVersion: (env) => env.npm_config_npm_version || null,
+  },
+  {
+    label: "Node.js",
+    requiredVars: ["npm_config_user_agent"],
+    parseVersion: (env) => {
+      const m = env.npm_config_user_agent?.match(/node\/v(\S+)/);
+      return m ? `v${m[1]}` : null;
+    },
+  },
+  {
+    label: "Go",
+    requiredVars: ["GOPATH"],
+  },
+  {
+    label: "Android SDK",
+    requiredVars: ["ANDROID_SDK_HOME"],
+  },
+  {
+    label: "Java (JDK)",
+    requiredVars: ["JAVA_HOME"],
+  },
+  {
+    label: "R",
+    requiredVars: ["R_HOME"],
+  },
+  {
+    label: "Python",
+    requiredVars: ["PYTHONHOME"],
+  },
+  {
+    label: ".NET SDK",
+    requiredVars: ["DOTNET_ROOT"], // presence-only: dotnet --version fails when no SDK installed
+  },
+  {
+    label: "Flutter",
+    requiredVars: ["FLUTTER_ROOT"],
+  },
+  {
+    label: "Android NDK",
+    requiredVars: ["ANDROID_NDK_HOME"],
+  },
+];
+
+/** Scan environment variables for known tools. Returns detected labels and any versions found. */
+function detectFromEnv(): { found: Record<string, string>; detected: Set<string> } {
+  const found: Record<string, string> = {};
+  const detected = new Set<string>();
+
+  for (const check of ENV_CHECKS) {
+    const env: Record<string, string> = {};
+    let allPresent = true;
+    for (const v of check.requiredVars) {
+      const val = process.env[v];
+      if (!val) { allPresent = false; break; }
+      env[v] = val;
+    }
+    if (!allPresent) continue;
+
+    detected.add(check.label);
+    if (check.parseVersion) {
+      const version = check.parseVersion(env);
+      if (version) found[check.label] = version;
+    }
+  }
+
+  return { found, detected };
+}
+
+/** Check if an executable exists on PATH using `where` (Windows) or `which`.
+ *  Returns the full path if found, null otherwise.
+ *  On Windows, prefers .exe > .cmd/.bat > extensionless (bash scripts). */
+async function whichExe(exe: string): Promise<string | null> {
   try {
-    const { stdout, stderr } = await execAsync(`"${exe}" ${args.join(" ")}`, {
-      timeout,
-      encoding: "utf-8",
-    });
-    const raw = (stdout || stderr || "").trim();
-    return raw || null;
+    const cmd = process.platform === "win32" ? `where ${exe}` : `which ${exe}`;
+    const { stdout } = await execAsync(cmd, { timeout: 5_000, encoding: "utf-8" });
+    const lines = stdout.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return null;
+
+    if (process.platform === "win32") {
+      const exeFile = lines.find((l) => /\.exe$/i.test(l));
+      if (exeFile) return exeFile;
+      const cmdFile = lines.find((l) => /\.(cmd|bat)$/i.test(l));
+      if (cmdFile) return cmdFile;
+    }
+
+    return lines[0] || null;
   } catch {
     return null;
   }
 }
 
-async function detectRuntimesDirect(): Promise<Record<string, string>> {
-  const found: Record<string, string> = {};
+/** Run an executable with args and return parsed version string.
+ *  Uses execFile for .exe (avoids cmd.exe PATH quirks) and cmd /c for .cmd/.bat.
+ *  Some tools (e.g. bz --version) print version info but exit non-zero;
+ *  we catch that and still try to extract from stdout/stderr. */
+async function queryVersion(exePath: string, args: string[], timeout = 15_000): Promise<string | null> {
+  const isCmd = /\.(cmd|bat)$/i.test(exePath);
+  const run = isCmd
+    ? () => execAsync(`"${exePath}" ${args.join(" ")}`, { timeout, encoding: "utf-8" })
+    : () => execFileAsync(exePath, args, { timeout, encoding: "utf-8" });
 
-  // Run checks in batches to avoid overwhelming the system
+  try {
+    const { stdout, stderr } = await run();
+    const raw = stripAnsi((stdout || stderr || "").trim());
+    return raw || null;
+  } catch (err: any) {
+    // Non-zero exit code — still try to extract version from output
+    const stdout = err?.stdout || "";
+    const stderr = err?.stderr || "";
+    const raw = stripAnsi((stdout || stderr || "").trim());
+    return raw || null;
+  }
+}
+
+async function detectRuntimesDirect(): Promise<Record<string, string>> {
+  // Phase 1: environment variable fast-check (zero process spawning)
+  const { found } = detectFromEnv();
+
+  // Phase 2: PATH scanning — skip tools already resolved with version from env.
+  const pathChecks = RUNTIME_CHECKS.filter(
+    (c) => !found[c.label] // not yet resolved with version
+  );
+
   const batchSize = 20;
-  for (let i = 0; i < RUNTIME_CHECKS.length; i += batchSize) {
-    const batch = RUNTIME_CHECKS.slice(i, i + batchSize);
+  for (let i = 0; i < pathChecks.length; i += batchSize) {
+    const batch = pathChecks.slice(i, i + batchSize);
     const results = await Promise.allSettled(
       batch.map(async (check) => {
-        const exists = await whichExe(check.executable);
-        if (!exists) return { label: check.label, version: null };
+        const exePath = await whichExe(check.executable);
+        if (!exePath) return { label: check.label, version: null };
 
-        const raw = await queryVersion(check.executable, check.args);
+        const raw = await queryVersion(exePath, check.args);
         if (!raw) return { label: check.label, version: "(detected, no version info)" };
 
         const version = check.parser(raw);
@@ -447,66 +593,54 @@ export async function detectRuntimes(forceRefresh = false): Promise<Record<strin
 // Category definitions + formatter
 // ---------------------------------------------------------------------------
 
-type CategoryValue = string | number | string[] | Record<string, string>;
-
-interface CategoryItem {
-  key: string;
-  getValue: () => Promise<CategoryValue> | CategoryValue;
-}
+type CategoryValue = string | number | string[] | Record<string, string | number> | Record<string, Record<string, string | number>>;
 
 interface Category {
   label: string;
-  items: CategoryItem[];
+  getData: () => Promise<Record<string, CategoryValue>> | Record<string, CategoryValue>;
 }
 
 export const CATEGORIES: Record<string, Category> = {
   system: {
     label: "System",
-    items: [
-      { key: "system", getValue: () => os.platform() },
-      { key: "release", getValue: () => os.release() },
-      { key: "version", getValue: () => os.version() },
-      { key: "hostname", getValue: () => os.hostname() },
-      { key: "machine", getValue: () => os.arch() },
-      { key: "uptime_days", getValue: () => getUptimeDays() },
-    ],
+    getData: () => ({
+      system: os.platform(),
+      release: os.release(),
+      version: os.version(),
+      hostname: os.hostname(),
+      machine: os.arch(),
+      uptime_days: getUptimeDays(),
+    }),
   },
   cpu: {
     label: "CPU",
-    items: [
-      { key: "processor", getValue: async () => (await getCpuInfo()).processor },
-      { key: "physical_cores", getValue: async () => (await getCpuInfo()).physicalCores },
-      { key: "logical_cores", getValue: async () => (await getCpuInfo()).logicalCores },
-    ],
+    getData: async () => {
+      const info = await getCpuInfo();
+      return {
+        processor: info.processor,
+        physical_cores: info.physicalCores,
+        logical_cores: info.logicalCores,
+      };
+    },
   },
   memory: {
     label: "Memory",
-    items: [
-      { key: "total_gb", getValue: async () => (await getMemoryStatus()).totalGb },
-      { key: "available_gb", getValue: async () => (await getMemoryStatus()).availableGb },
-      { key: "usage_pct", getValue: async () => (await getMemoryStatus()).usagePct },
-    ],
+    getData: async () => {
+      const m = await getMemoryStatus();
+      return { total_gb: m.totalGb, available_gb: m.availableGb, usage_pct: m.usagePct };
+    },
   },
   disk: {
-    label: "Disk (C:\\)",
-    items: [
-      { key: "total_gb", getValue: async () => (await getDiskInfo()).totalGb },
-      { key: "used_gb", getValue: async () => (await getDiskInfo()).usedGb },
-      { key: "free_gb", getValue: async () => (await getDiskInfo()).freeGb },
-      { key: "usage_pct", getValue: async () => (await getDiskInfo()).usagePct },
-    ],
+    label: "Disk",
+    getData: () => getDiskInfo(),
   },
   gpu: {
     label: "GPU",
-    items: [
-      { key: "adapters", getValue: () => getGpuInfo() },
-    ],
+    getData: async () => ({ adapters: await getGpuInfo() }),
   },
   runtimes: {
     label: "Runtimes & Toolchains",
-    items: [
-      { key: "detected", getValue: () => detectRuntimes() },
-    ],
+    getData: () => detectRuntimes(),
   },
 };
 
@@ -514,18 +648,26 @@ export async function fmt(catName: string): Promise<string> {
   const cat = CATEGORIES[catName];
   if (!cat) return `(unknown category: ${catName})`;
 
+  const data = await cat.getData();
+
   const lines: string[] = [];
-  for (const item of cat.items) {
-    const val = await item.getValue();
-    if (Array.isArray(val)) {
-      const valStr = val.length > 0 ? val.join(", ") : "(none)";
-      lines.push(`${item.key}: ${valStr}`);
-    } else if (typeof val === "object" && val !== null) {
-      for (const [k, v] of Object.entries(val)) {
-        lines.push(`  ${k}: ${v}`);
+  for (const [k, v] of Object.entries(data)) {
+    if (Array.isArray(v)) {
+      lines.push(`${k}: ${v.length > 0 ? v.join(", ") : "(none)"}`);
+    } else if (typeof v === "object" && v !== null) {
+      lines.push(`${k}:`);
+      for (const [k2, v2] of Object.entries(v)) {
+        if (typeof v2 === "object" && v2 !== null) {
+          lines.push(`  ${k2}:`);
+          for (const [k3, v3] of Object.entries(v2)) {
+            lines.push(`    ${k3}: ${v3}`);
+          }
+        } else {
+          lines.push(`  ${k2}: ${v2}`);
+        }
       }
     } else {
-      lines.push(`${item.key}: ${val}`);
+      lines.push(`${k}: ${v}`);
     }
   }
   return lines.join("\n");
@@ -595,6 +737,6 @@ export function spawnProcess(
 }
 
 /** Truncate a string to MAX_RESULT_LEN characters. */
-export function truncate(s: string, maxLen: number = 2000): string {
+export function truncate(s: string, maxLen: number = 5000): string {
   return s.length <= maxLen ? s : s.slice(0, maxLen) + "... (truncated)";
 }

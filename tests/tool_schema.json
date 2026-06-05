@@ -50,7 +50,7 @@
         },
         {
           "noun": "disk_info",
-          "description": "C: drive disk usage"
+          "description": "All logical drives disk usage"
         },
         {
           "noun": "gpu_info",
@@ -58,7 +58,7 @@
         },
         {
           "noun": "runtime_info",
-          "description": "Installed dev tools and runtimes"
+          "description": "Installed dev tools and runtimes (env vars + PATH scan)"
         }
       ]
     }

@@ -8,7 +8,7 @@ import { registerTool } from "./lib/registry.js";
 import { spawnProcess, truncate } from "./lib/env_helpers.js";
 import { SandboxError } from "./lib/errors.js";
 
-const TIMEOUT = 10_000;
+const TIMEOUT = 30_000;
 
 function cleanROutput(s: string): string {
   const lines = s.split("\n");
@@ -83,22 +83,23 @@ async function runR(expression: string): Promise<string> {
 }
 
 const DESCRIPTION =
-  "Run R code. Use for statistical analysis, data visualization, or any R task. " +
-  "Full R access — library any installed package (tidyverse, tidymodels, survival, etc.). " +
-  "For multi-line code, use print() or cat() for output. Timeout: 10 seconds.";
+  "Run R code. Use for ANY computation, data analysis, or statistical task. " +
+  "Full R access — import any library (tidyverse, survival, lme4, caret, etc.). " +
+  "For multi-line code, use print() or cat() for output. Timeout: 30 seconds.\n" +
+  "PITFALLS:\n" +
+  "- Always wrap library() with suppressPackageStartupMessages() to avoid stderr triggering false errors.\n" +
+  "  GOOD: suppressPackageStartupMessages(library(tidyverse))\n" +
+  "  BAD:  library(tidyverse) // startup messages to stderr → treated as error, stdout lost\n" +
+  "- Each call is an isolated R session. Variables do not persist across calls.\n" +
+  "- Timeout is 30 seconds. Long-running code will be killed with no partial output.\n" +
+  "- Plots are not returned. Use png()/dev.off() to save to file if needed.";
 
 const EXPRESSION_DESC =
   "R code. Single expression returns directly. " +
   "Multi-line code: use print() or cat() for output. " +
   "Assignment (x <- ...) does NOT print — wrap with print() to see result.\n" +
-  "OUTPUT RULES — result is read by an LLM, not a human:\n" +
-  "The LLM already knows the context. It only needs raw data.\n" +
-  "RULE: Output ONLY raw data. Everything else is noise.\n" +
-  "Forbidden: headers, titles, labels, separators, alignment, " +
-  "counts, summaries, markdown, formatting, column headers, " +
-  "decorative text, confirmations\n" +
-  "For plots: use png()/dev.off() silently, do not print anything.\n" +
-  "GOOD: cat(result) / print(coef(model))\n" +
+  "Use cat() for raw values, print() for structured objects (data frames, models, etc.).\n" +
+  "GOOD: cat(result) / print(coef(model)) / summary(m)\n" +
   "BAD:  cat('结果如下：\\n') / print('图片已保存为 xxx')";
 
 registerTool({

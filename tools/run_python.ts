@@ -8,7 +8,7 @@ import { registerTool } from "./lib/registry.js";
 import { spawnProcess, truncate } from "./lib/env_helpers.js";
 import { SandboxError } from "./lib/errors.js";
 
-const TIMEOUT = 10_000;
+const TIMEOUT = 30_000;
 
 // Wrapper that captures `result` variable (same as Python version)
 const WRAPPER = `import sys
@@ -71,21 +71,15 @@ async function runPython(expression: string): Promise<string> {
 const DESCRIPTION =
   "Run Python code. Use for ANY computation, data processing, algorithm, or task. " +
   "Full Python access — import any installed package (numpy, pandas, requests, etc.). " +
-  "For multi-line code, assign final answer to `result`. Timeout: 10 seconds.";
+  "For multi-line code, assign final answer to `result`. Timeout: 30 seconds.";
 
 const EXPRESSION_DESC =
   "Python code. Single expression returns directly. " +
-  "Multi-line code: use print() for output. " +
-  "You can import any installed package. If import fails, the user will install it.\n" +
-  "OUTPUT RULES — result is read by an LLM, not a human:\n" +
-  "The LLM already knows the context. It only needs raw data.\n" +
-  "RULE: Output ONLY raw data. Everything else is noise.\n" +
-  "Forbidden: headers, titles, labels, separators (---, ===), " +
-  "alignment (f'{x:<30}'), counts, summaries, markdown, formatting, " +
-  "table borders, column headers, decorative text, confirmations\n" +
+  "Multi-line code: use print() for output. You can import any installed package. " +
+  "If import fails, the user will install it.\n" +
   "If asked for ONE answer, output ONE value.\n" +
   "GOOD: print(f'{name}: {size}') or print(result)\n" +
-  "BAD:  print(f\"{'name':<30}\") / print('---') / print('共 X 个')";
+  "BAD:  print('---结果如下---') / print('共找到 X 个结果')";
 
 registerTool({
   name: "run_python",

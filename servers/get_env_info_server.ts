@@ -36,6 +36,7 @@ try {
         name,
         tool.description,
         tool.parameters,
+        { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
         async (args: Record<string, unknown>) => {
           try {
             const result = await tool.handler(args);

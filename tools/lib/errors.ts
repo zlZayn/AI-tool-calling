@@ -23,7 +23,7 @@ export class SandboxError extends Error {
   }
 
   /** Create a timeout error. */
-  static timeout(seconds: number = 10): SandboxError {
+  static timeout(seconds: number = 30): SandboxError {
     return new SandboxError("timeout", `timeout (${seconds}s)`);
   }
 
