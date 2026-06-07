@@ -87,28 +87,78 @@ function getUptimeDays(): number {
 // CPU
 // ---------------------------------------------------------------------------
 
-interface CpuInfo {
+interface CpuCimEntry {
   Name: string;
   NumberOfCores: number;
   NumberOfLogicalProcessors: number;
+  MaxClockSpeed: number;
+  CurrentClockSpeed: number;
+  L2CacheSize: number;
+  L3CacheSize: number;
+  Architecture: number;
+  LoadPercentage: number;
+  VirtualizationFirmwareEnabled: boolean;
 }
 
-async function getCpuInfo(): Promise<{ processor: string; physicalCores: number; logicalCores: number }> {
-  const info = await psJson<CpuInfo>(
-    "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors | ConvertTo-Json"
+/** Map Win32_Processor Architecture value to human-readable string. */
+function cpuArchitectureName(code: number): string {
+  const map: Record<number, string> = {
+    0: "x86",
+    1: "MIPS",
+    2: "Alpha",
+    3: "PowerPC",
+    5: "ARM",
+    6: "ia64",
+    9: "x64",
+    12: "ARM64",
+  };
+  return map[code] ?? `Unknown(${code})`;
+}
+
+export interface CpuInfo {
+  processor: string;
+  physical_cores: number;
+  logical_cores: number;
+  max_clock_mhz: number;
+  current_clock_mhz: number;
+  l2_cache_kb: number;
+  l3_cache_kb: number;
+  architecture: string;
+  load_pct: number;
+  virtualization: boolean;
+}
+
+async function getCpuInfo(): Promise<CpuInfo> {
+  const info = await psJson<CpuCimEntry>(
+    "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed,CurrentClockSpeed,L2CacheSize,L3CacheSize,Architecture,LoadPercentage,VirtualizationFirmwareEnabled | ConvertTo-Json"
   );
   if (info) {
     return {
       processor: info.Name.trim(),
-      physicalCores: info.NumberOfCores,
-      logicalCores: info.NumberOfLogicalProcessors,
+      physical_cores: info.NumberOfCores,
+      logical_cores: info.NumberOfLogicalProcessors,
+      max_clock_mhz: info.MaxClockSpeed,
+      current_clock_mhz: info.CurrentClockSpeed,
+      l2_cache_kb: info.L2CacheSize,
+      l3_cache_kb: info.L3CacheSize,
+      architecture: cpuArchitectureName(info.Architecture),
+      load_pct: info.LoadPercentage,
+      virtualization: info.VirtualizationFirmwareEnabled,
     };
   }
-  // Fallback
+  // Fallback: os module
+  const cpus = os.cpus();
   return {
-    processor: os.cpus()[0]?.model || "unknown",
-    physicalCores: 0,
-    logicalCores: os.cpus().length,
+    processor: cpus[0]?.model || "unknown",
+    physical_cores: 0,
+    logical_cores: cpus.length,
+    max_clock_mhz: cpus[0]?.speed || 0,
+    current_clock_mhz: cpus[0]?.speed || 0,
+    l2_cache_kb: 0,
+    l3_cache_kb: 0,
+    architecture: os.arch(),
+    load_pct: 0,
+    virtualization: false,
   };
 }
 
@@ -148,17 +198,168 @@ async function getDiskInfo(): Promise<DiskMap> {
 // GPU
 // ---------------------------------------------------------------------------
 
-interface GpuEntry {
+interface GpuCimEntry {
   Name: string;
+  AdapterRAM: string;
+  DriverVersion: string;
+  VideoProcessor: string;
+  CurrentRefreshRate: string;
 }
 
-async function getGpuInfo(): Promise<string[]> {
-  const raw = await psJson<GpuEntry | GpuEntry[]>(
-    "Get-CimInstance Win32_VideoController | Select-Object Name | ConvertTo-Json"
+interface NvidiaGpuDetail {
+  name: string;
+  vram_total_mb: number;
+  vram_used_mb: number;
+  vram_free_mb: number;
+  gpu_util_pct: number;
+  mem_util_pct: number;
+  temperature_c: number;
+  power_draw_w: number | null;
+  power_limit_w: number | null;
+  driver_version: string;
+  cuda_version: string;
+}
+
+export interface GpuInfo {
+  name: string;
+  vram_mb: number | null;
+  driver_version: string | null;
+  video_processor: string | null;
+  refresh_rate: string | null;
+  nvidia: NvidiaGpuDetail | null;
+}
+
+/** Parse nvidia-smi CSV output into structured detail. */
+function parseNvidiaSmi(stdout: string): NvidiaGpuDetail | null {
+  // Expected CSV header:
+  // name,memory.total,memory.used,memory.free,utilization.gpu,utilization.memory,temperature.gpu,power.draw,power.limit,driver_version,pci.bus_id
+  const lines = stdout.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return null;
+
+  // Find the header line (nvidia-smi may print a warning before the CSV)
+  const headerIdx = lines.findIndex((l) => l.includes("memory.total"));
+  if (headerIdx < 0 || headerIdx + 1 >= lines.length) return null;
+
+  const headers = lines[headerIdx].split(",").map((h) => h.trim());
+  const values = lines[headerIdx + 1].split(",").map((v) => v.trim());
+
+  const get = (key: string): string => {
+    const idx = headers.indexOf(key);
+    return idx >= 0 ? values[idx] || "" : "";
+  };
+
+  const parseMb = (s: string): number => {
+    const m = s.match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+
+  const parsePct = (s: string): number => {
+    const m = s.match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+
+  const parseW = (s: string): number | null => {
+    if (/n\/a|\[N\/A\]/i.test(s)) return null;
+    const m = s.match(/([\d.]+)/);
+    return m ? parseFloat(m[1]) : null;
+  };
+
+  const parseTemp = (s: string): number => {
+    const m = s.match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+
+  return {
+    name: get("name"),
+    vram_total_mb: parseMb(get("memory.total")),
+    vram_used_mb: parseMb(get("memory.used")),
+    vram_free_mb: parseMb(get("memory.free")),
+    gpu_util_pct: parsePct(get("utilization.gpu")),
+    mem_util_pct: parsePct(get("utilization.memory")),
+    temperature_c: parseTemp(get("temperature.gpu")),
+    power_draw_w: parseW(get("power.draw")),
+    power_limit_w: parseW(get("power.limit")),
+    driver_version: get("driver_version"),
+    cuda_version: "", // filled from nvidia-smi -q or separate call
+  };
+}
+
+/** Try to get CUDA version from nvidia-smi. */
+async function getNvidiaCudaVersion(): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(
+      "nvidia-smi",
+      ["--query-gpu=driver_version", "--format=csv,noheader"],
+      { timeout: 10_000, encoding: "utf-8" }
+    );
+    // CUDA version is in the top banner of `nvidia-smi` (no args)
+    const { stdout: full } = await execFileAsync("nvidia-smi", [], {
+      timeout: 10_000,
+      encoding: "utf-8",
+    });
+    const cudaMatch = full.match(/CUDA Version:\s*([\d.]+)/);
+    return cudaMatch ? cudaMatch[1] : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Query nvidia-smi for the first NVIDIA GPU. Returns null if not available. */
+async function getNvidiaDetail(): Promise<NvidiaGpuDetail | null> {
+  const fields = [
+    "name",
+    "memory.total",
+    "memory.used",
+    "memory.free",
+    "utilization.gpu",
+    "utilization.memory",
+    "temperature.gpu",
+    "power.draw",
+    "power.limit",
+    "driver_version",
+    "pci.bus_id",
+  ];
+  try {
+    const { stdout } = await execFileAsync(
+      "nvidia-smi",
+      [`--query-gpu=${fields.join(",")}`, "--format=csv,noheader,nounits"],
+      { timeout: 10_000, encoding: "utf-8" }
+    );
+    // Build a fake CSV with headers for the parser
+    const fakeCsv = `${fields.join(",")}\n${stdout.trim()}`;
+    const detail = parseNvidiaSmi(fakeCsv);
+    if (detail) {
+      detail.cuda_version = await getNvidiaCudaVersion();
+    }
+    return detail;
+  } catch {
+    return null;
+  }
+}
+
+async function getGpuInfo(): Promise<GpuInfo[]> {
+  // Basic info from CIM
+  const raw = await psJson<GpuCimEntry | GpuCimEntry[]>(
+    "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion,VideoProcessor,CurrentRefreshRate | ConvertTo-Json"
   );
   if (!raw) return [];
-  const entries = Array.isArray(raw) ? raw : [raw];
-  return entries.map((e) => e.Name).filter(Boolean);
+  const cimEntries = Array.isArray(raw) ? raw : [raw];
+
+  // NVIDIA detail (shared across all NVIDIA adapters)
+  const nvidia = await getNvidiaDetail();
+
+  return cimEntries.map((e) => {
+    const vramBytes = parseInt(e.AdapterRAM, 10);
+    const isNvidia = /nvidia/i.test(e.Name);
+    return {
+      name: e.Name,
+      vram_mb: vramBytes > 0 ? Math.round(vramBytes / 1024 / 1024) : null,
+      driver_version: e.DriverVersion || null,
+      video_processor: e.VideoProcessor || null,
+      refresh_rate: e.CurrentRefreshRate || null,
+      nvidia: isNvidia ? nvidia : null,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -593,7 +794,7 @@ export async function detectRuntimes(forceRefresh = false): Promise<Record<strin
 // Category definitions + formatter
 // ---------------------------------------------------------------------------
 
-type CategoryValue = string | number | string[] | Record<string, string | number> | Record<string, Record<string, string | number>>;
+type CategoryValue = string | number | boolean | string[] | Record<string, string | number | boolean> | Record<string, Record<string, string | number | boolean>>;
 
 interface Category {
   label: string;
@@ -618,8 +819,15 @@ export const CATEGORIES: Record<string, Category> = {
       const info = await getCpuInfo();
       return {
         processor: info.processor,
-        physical_cores: info.physicalCores,
-        logical_cores: info.logicalCores,
+        physical_cores: info.physical_cores,
+        logical_cores: info.logical_cores,
+        max_clock_mhz: info.max_clock_mhz,
+        current_clock_mhz: info.current_clock_mhz,
+        l2_cache_kb: info.l2_cache_kb,
+        l3_cache_kb: info.l3_cache_kb,
+        architecture: info.architecture,
+        load_pct: info.load_pct,
+        virtualization: info.virtualization,
       };
     },
   },
@@ -636,7 +844,33 @@ export const CATEGORIES: Record<string, Category> = {
   },
   gpu: {
     label: "GPU",
-    getData: async () => ({ adapters: await getGpuInfo() }),
+    getData: async () => {
+      const gpus = await getGpuInfo();
+      const result: Record<string, CategoryValue> = {};
+      for (let i = 0; i < gpus.length; i++) {
+        const g = gpus[i];
+        const prefix = gpus.length > 1 ? `gpu${i}` : "gpu";
+        const entry: Record<string, string | number> = { name: g.name };
+        if (g.vram_mb != null) entry.vram_mb = g.vram_mb;
+        if (g.driver_version) entry.driver_version = g.driver_version;
+        if (g.video_processor) entry.video_processor = g.video_processor;
+        if (g.refresh_rate) entry.refresh_rate_hz = g.refresh_rate;
+        if (g.nvidia) {
+          entry.nvidia_vram_total_mb = g.nvidia.vram_total_mb;
+          entry.nvidia_vram_used_mb = g.nvidia.vram_used_mb;
+          entry.nvidia_vram_free_mb = g.nvidia.vram_free_mb;
+          entry.nvidia_gpu_util_pct = g.nvidia.gpu_util_pct;
+          entry.nvidia_mem_util_pct = g.nvidia.mem_util_pct;
+          entry.nvidia_temperature_c = g.nvidia.temperature_c;
+          if (g.nvidia.power_draw_w != null) entry.nvidia_power_draw_w = g.nvidia.power_draw_w;
+          if (g.nvidia.power_limit_w != null) entry.nvidia_power_limit_w = g.nvidia.power_limit_w;
+          entry.nvidia_driver_version = g.nvidia.driver_version;
+          if (g.nvidia.cuda_version) entry.nvidia_cuda_version = g.nvidia.cuda_version;
+        }
+        result[prefix] = entry;
+      }
+      return result;
+    },
   },
   runtimes: {
     label: "Runtimes & Toolchains",

@@ -42,7 +42,7 @@
         },
         {
           "noun": "cpu_info",
-          "description": "Processor model and cores"
+          "description": "Processor model, cores, clock speed, cache, architecture, load, virtualization"
         },
         {
           "noun": "memory_info",
@@ -54,7 +54,7 @@
         },
         {
           "noun": "gpu_info",
-          "description": "GPU adapters"
+          "description": "GPU adapters with VRAM, driver, refresh rate; NVIDIA real-time utilization, temperature, power, CUDA version"
         },
         {
           "noun": "runtime_info",

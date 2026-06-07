@@ -47,10 +47,10 @@ This replaces Python's `pkgutil.iter_modules()` auto-discovery with explicit imp
 
 `tools/lib/env_helpers.ts` uses PowerShell CIM cmdlets via `child_process.execFile` for hardware queries:
 
-- Memory: `Get-CimInstance Win32_OperatingSystem`
-- CPU: `Get-CimInstance Win32_Processor`
-- Disk: `Get-CimInstance Win32_LogicalDisk`
-- GPU: `Get-CimInstance Win32_VideoController`
+- Memory: `Get-CimInstance Win32_OperatingSystem` — total, available, usage %
+- CPU: `Get-CimInstance Win32_Processor` — model, physical/logical cores, max/current clock, L2/L3 cache, architecture, load %, virtualization
+- Disk: `Get-CimInstance Win32_LogicalDisk` — per-drive total, used, free, usage %
+- GPU: `Get-CimInstance Win32_VideoController` — name, VRAM, driver, video processor, refresh rate. For NVIDIA GPUs, `nvidia-smi --query-gpu` provides real-time VRAM usage, GPU/memory utilization, temperature, power draw, driver version, and CUDA version
 - Runtimes: 150+ executable version checks via `child_process.exec`, batched with `Promise.allSettled`
 
 Node.js `os` module is used for basic info (hostname, arch, uptime).
