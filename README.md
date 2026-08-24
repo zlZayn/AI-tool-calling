@@ -106,6 +106,13 @@ AI-tool-calling/
 ├── config/
 │   ├── config.json                 (git-ignored)
 │   └── config_example.json
+├── AGENTS.md                       维护索引（仪表盘 + 文档地图）
+├── docs/
+│   └── ARCHITECTURE.md             架构说明
+├── .agents/
+│   └── notes/                      决策记录
 ├── package.json
 └── tsconfig.json
 ```
+
+Maintainers: see [AGENTS.md](AGENTS.md) for rules, verification snapshot, and the doc map.
