@@ -12,6 +12,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createRequire } from "module";
 import { getAllTools } from "../tools/index.js";
 
 const ENV_TOOL_NAMES = new Set([
@@ -23,9 +24,12 @@ const ENV_TOOL_NAMES = new Set([
   "get_runtime_info",
 ]);
 
+// version 单一来源：根 package.json（createRequire 规避 ESM JSON import 兼容性）
+const pkg = createRequire(import.meta.url)("../package.json");
+
 const server = new McpServer({
   name: "get-env-info",
-  version: "1.0.0",
+  version: pkg.version,
 });
 
 // Register each environment tool with the MCP server

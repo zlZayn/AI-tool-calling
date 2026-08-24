@@ -9,13 +9,17 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createRequire } from "module";
 import { getAllTools } from "../tools/index.js";
 
 const SANDBOX_TOOL_NAMES = new Set(["run_python", "run_r", "run_shell"]);
 
+// version 单一来源：根 package.json（createRequire 规避 ESM JSON import 兼容性）
+const pkg = createRequire(import.meta.url)("../package.json");
+
 const server = new McpServer({
   name: "run-code",
-  version: "1.0.0",
+  version: pkg.version,
 });
 
 // Register each code-execution tool with the MCP server
