@@ -5,13 +5,13 @@
 - 命名：文件/工具 snake_case，MCP server 名 kebab-case（见 [tools/TOOL_GUIDE.md](tools/TOOL_GUIDE.md)）
 - 新工具三步：新建 `tools/{name}.ts` → [tools/index.ts](tools/index.ts) 加 barrel import → 登记 [tool_schema.json](tests/tool_schema.json)
 - 架构：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- 文档地图：[tools/README.md](tools/README.md) · [servers/README.md](servers/README.md) · [lib/README.md](lib/README.md) · [tests/README.md](tests/README.md) · [.agents/notes/](.agents/notes/)
+- 文档地图：[tools/README.md](tools/README.md) · [servers/README.md](servers/README.md) · [lib/README.md](lib/README.md) · [tests/README.md](tests/README.md) · [config/README.md](config/README.md) · [.agents/notes/](.agents/notes/)
 
 ## 常用命令
 - `npm test`（命名测试）· `npx tsx tests/test_direct_tools.ts` · `npx tsx tests/test_mcp_servers.ts`
 - `npx tsc --noEmit` · `npm run build` · `npm run dev:mcp:env` · `npm run dev:mcp:code`
 
-## 验证快照（2026-08-24 实测）
+## 验证快照（2026-08-28 实测）
 - npm test: 24 passed / 0 failed
 - test_direct_tools: 9 个工具全过
 - test_mcp_servers: 2 个 server 全过

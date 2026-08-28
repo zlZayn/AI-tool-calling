@@ -6,3 +6,4 @@
 - 被谁依赖：仅 [index.ts](../index.ts)（CLI 入口）
 - 变更影响路由：改 chat 参数/返回 → 同步 [index.ts](../index.ts) 的 CLI 用法与 [README.md](../README.md) 参数表
 - 使用约束与工作偏好 → 见 [AGENTS.md](AGENTS.md)
+- 回引根索引：[../AGENTS.md](../AGENTS.md) · 架构：[../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)

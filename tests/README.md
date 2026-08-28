@@ -8,3 +8,4 @@
 - 深度说明 → 见 [TEST_GUIDE.md](TEST_GUIDE.md)
 - 变更影响路由：改工具/服务器名或 .mcp.json → 跑命名测试 + MCP 测试；改 handler 行为 → 跑直接调用测试
 - 使用约束与工作偏好 → 见 [AGENTS.md](AGENTS.md)
+- 回引根索引：[../AGENTS.md](../AGENTS.md) · 架构：[../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)

@@ -11,3 +11,4 @@
 - 编写指南与命名规范 → 见 [TOOL_GUIDE.md](TOOL_GUIDE.md)
 - 变更影响路由：改工具名 → tool_schema.json + 两个测试；改参数 schema → MCP 与 OpenAI 两侧契约同变
 - 使用约束与工作偏好 → 见 [AGENTS.md](AGENTS.md)
+- 回引根索引：[../AGENTS.md](../AGENTS.md) · 架构：[../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)

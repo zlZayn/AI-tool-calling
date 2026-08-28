@@ -7,3 +7,4 @@
 - env_helpers.ts：`CATEGORIES`/`fmt`（环境信息格式化）、`detectRuntimes`（双阶段探测 + 缓存）、`spawnProcess`/`truncate`，被 get_* 与 run_* 依赖
 - 变更影响路由：改共享函数 → 依赖方见上，改动后必跑 [test_direct_tools.ts](../../tests/test_direct_tools.ts) 与 `npx tsc --noEmit`
 - 使用约束与工作偏好 → 见 [AGENTS.md](AGENTS.md)
+- 回引根索引：[../../AGENTS.md](../../AGENTS.md) · 架构：[../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md)
