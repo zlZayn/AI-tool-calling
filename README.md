@@ -2,6 +2,12 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 
+## Preview
+
+![tools listed in Claude Code](screenshots/tools-in-claude-code.png)
+
+Nine tools available as MCP servers, directly in Claude Code.
+
 Minimal tool calling framework. Tool Calling + MCP dual-mode.
 
 ## Quick Start

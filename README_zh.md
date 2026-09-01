@@ -2,6 +2,12 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 
+## 预览
+
+![tools listed in Claude Code](screenshots/tools-in-claude-code.png)
+
+9 个工具以 MCP 形式出现在 Claude Code 中，开箱即用。
+
 极简工具调用框架。Tool Calling + MCP 双模式运行。
 
 ## 快速开始
