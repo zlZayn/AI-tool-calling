@@ -9,13 +9,13 @@ export type ZodRawShape = Record<string, z.ZodTypeAny>;
 /** A registered tool — name, description, schema, and handler. */
 export interface Tool {
   /** Tool name, e.g. "run_python" */
-  name: string;
+  readonly name: string;
   /** Human-readable description for the LLM */
-  description: string;
+  readonly description: string;
   /** Zod raw shape for MCP SDK validation (e.g. { expression: z.string() }) */
-  parameters: ZodRawShape;
+  readonly parameters: ZodRawShape;
   /** Async handler that executes the tool and returns a string result */
-  handler: (args: Record<string, unknown>) => Promise<string>;
+  readonly handler: (args: Record<string, unknown>) => Promise<string>;
 }
 
 /**

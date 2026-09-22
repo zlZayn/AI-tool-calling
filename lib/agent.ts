@@ -34,11 +34,11 @@ interface ChatMessage {
 }
 
 export class Agent {
-  private client: OpenAI;
-  private model: string;
-  public tools: Map<string, Tool>;
-  private schemas: OpenAI.ChatCompletionTool[];
-  private messages: ChatMessage[] = [];
+  private readonly client: OpenAI;
+  private readonly model: string;
+  public readonly tools: Map<string, Tool>;
+  private readonly schemas: OpenAI.ChatCompletionTool[];
+  private readonly messages: ChatMessage[] = [];
 
   private constructor(
     client: OpenAI,
@@ -115,7 +115,9 @@ export class Agent {
     const { verbose = false, stream = false, forceTool = false } = options;
 
     this.messages.push({ role: "user", content: userMessage });
-    const toolChoice = forceTool ? ("required" as const) : ("auto" as const);
+    const toolChoice: OpenAI.ChatCompletionToolChoiceOption = forceTool
+      ? "required"
+      : "auto";
     const live = verbose && stream;
 
     while (true) {
@@ -123,7 +125,7 @@ export class Agent {
         model: this.model,
         messages: Agent.compact(this.messages) as OpenAI.ChatCompletionMessageParam[],
         tools: this.schemas.length > 0 ? this.schemas : undefined,
-        tool_choice: toolChoice as OpenAI.ChatCompletionToolChoiceOption,
+        tool_choice: toolChoice,
         stream: true,
       });
 
@@ -137,7 +139,7 @@ export class Agent {
         const delta = chunk.choices[0].delta;
 
         // Reasoning (thinking) — some models support reasoning_content
-        const rc = (delta as Record<string, unknown>).reasoning_content as string | undefined;
+        const rc = (delta as { reasoning_content?: string }).reasoning_content;
         if (rc) {
           if (live && !reasoning) process.stdout.write("  [llm-thinking] ");
           reasoning += rc;
@@ -158,10 +160,8 @@ export class Agent {
         if (delta.tool_calls) {
           for (const tcDelta of delta.tool_calls) {
             const idx = tcDelta.index;
-            if (!toolCalls.has(idx)) {
-              toolCalls.set(idx, { id: "", name: "", arguments: "" });
-            }
-            const acc = toolCalls.get(idx)!;
+            const acc = toolCalls.get(idx) ?? { id: "", name: "", arguments: "" };
+            toolCalls.set(idx, acc);
             if (tcDelta.id) acc.id = tcDelta.id;
             if (tcDelta.function) {
               if (tcDelta.function.name) acc.name = tcDelta.function.name;
