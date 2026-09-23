@@ -8,7 +8,17 @@
 
 import { exec, execFile, spawn } from "child_process";
 import { promisify } from "util";
-import * as os from "os";
+import {
+  arch,
+  cpus,
+  freemem,
+  hostname,
+  platform,
+  release,
+  totalmem,
+  uptime,
+  version,
+} from "os";
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -67,8 +77,8 @@ async function getMemoryStatus(): Promise<{ totalGb: number; availableGb: number
     return { totalGb, availableGb, usagePct };
   }
   // Fallback: os module (less precise)
-  const totalBytes = os.totalmem();
-  const freeBytes = os.freemem();
+  const totalBytes = totalmem();
+  const freeBytes = freemem();
   const totalGb = Math.round((totalBytes / 1024 ** 3) * 10) / 10;
   const availableGb = Math.round((freeBytes / 1024 ** 3) * 10) / 10;
   const usagePct = Math.round(((totalBytes - freeBytes) / totalBytes) * 100);
@@ -80,7 +90,7 @@ async function getMemoryStatus(): Promise<{ totalGb: number; availableGb: number
 // ---------------------------------------------------------------------------
 
 function getUptimeDays(): number {
-  return Math.round((os.uptime() / 86400) * 100) / 100;
+  return Math.round((uptime() / 86400) * 100) / 100;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,16 +157,16 @@ async function getCpuInfo(): Promise<CpuInfo> {
     };
   }
   // Fallback: os module
-  const cpus = os.cpus();
+  const cpuList = cpus();
   return {
-    processor: cpus[0]?.model || "unknown",
+    processor: cpuList[0]?.model || "unknown",
     physical_cores: 0,
-    logical_cores: cpus.length,
-    max_clock_mhz: cpus[0]?.speed || 0,
-    current_clock_mhz: cpus[0]?.speed || 0,
+    logical_cores: cpuList.length,
+    max_clock_mhz: cpuList[0]?.speed || 0,
+    current_clock_mhz: cpuList[0]?.speed || 0,
     l2_cache_kb: 0,
     l3_cache_kb: 0,
-    architecture: os.arch(),
+    architecture: arch(),
     load_pct: 0,
     virtualization: false,
   };
@@ -735,10 +745,11 @@ async function queryVersion(exePath: string, args: string[], timeout = 15_000): 
     const { stdout, stderr } = await run();
     const raw = stripAnsi((stdout || stderr || "").trim());
     return raw || null;
-  } catch (err: any) {
+  } catch (err) {
     // Non-zero exit code — still try to extract version from output
-    const stdout = err?.stdout || "";
-    const stderr = err?.stderr || "";
+    const error = err as { stdout?: string; stderr?: string } | null;
+    const stdout = error?.stdout ?? "";
+    const stderr = error?.stderr ?? "";
     const raw = stripAnsi((stdout || stderr || "").trim());
     return raw || null;
   }
@@ -805,11 +816,11 @@ export const CATEGORIES: Record<string, Category> = {
   system: {
     label: "System",
     getData: () => ({
-      system: os.platform(),
-      release: os.release(),
-      version: os.version(),
-      hostname: os.hostname(),
-      machine: os.arch(),
+      system: platform(),
+      release: release(),
+      version: version(),
+      hostname: hostname(),
+      machine: arch(),
       uptime_days: getUptimeDays(),
     }),
   },

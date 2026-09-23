@@ -109,8 +109,9 @@ registerTool({
     expression: z.string().describe(EXPRESSION_DESC),
   },
   handler: async (args) => {
+    const expression = typeof args.expression === "string" ? args.expression : "";
     try {
-      return await runR(args.expression as string);
+      return await runR(expression);
     } catch (e) {
       if (e instanceof SandboxError) return e.message;
       throw e;

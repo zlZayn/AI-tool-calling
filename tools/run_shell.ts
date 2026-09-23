@@ -68,8 +68,9 @@ registerTool({
     command: z.string().describe(COMMAND_DESC),
   },
   handler: async (args) => {
+    const command = typeof args.command === "string" ? args.command : "";
     try {
-      return await runShell(args.command as string);
+      return await runShell(command);
     } catch (e) {
       if (e instanceof SandboxError) return e.message;
       throw e;

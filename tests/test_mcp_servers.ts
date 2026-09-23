@@ -8,6 +8,7 @@
 import { spawn, type ChildProcess } from "child_process";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { setTimeout as delay } from "timers/promises";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -150,7 +151,7 @@ async function testServer(
   } finally {
     proc.kill("SIGTERM");
     // Give it a moment to clean up
-    await new Promise((r) => setTimeout(r, 500));
+    await delay(500);
     if (stderr) {
       console.log(`  [stderr] ${stderr.slice(0, 200)}`);
     }
