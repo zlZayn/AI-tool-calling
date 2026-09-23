@@ -108,8 +108,5 @@ registerTool({
   parameters: {
     expression: z.string().describe(EXPRESSION_DESC),
   },
-  handler: async (args) => {
-    const expression = typeof args.expression === "string" ? args.expression : "";
-    return withSandboxErrors(() => runR(expression));
-  },
+  handler: async ({ expression = "" }) => withSandboxErrors(() => runR(expression)),
 });
