@@ -123,6 +123,7 @@ export class Agent {
     while (true) {
       const apiStream = await this.client.chat.completions.create({
         model: this.model,
+        // Agent.compact 返回通用消息数组，SDK 入参要求 ChatCompletionMessageParam[]（库边界，最小范围断言）
         messages: Agent.compact(this.messages) as OpenAI.ChatCompletionMessageParam[],
         tools: this.schemas.length > 0 ? this.schemas : undefined,
         tool_choice: toolChoice,
@@ -138,7 +139,7 @@ export class Agent {
         if (!chunk.choices.length) continue;
         const delta = chunk.choices[0].delta;
 
-        // Reasoning (thinking) — some models support reasoning_content
+        // Reasoning (thinking) — reasoning_content 为模型扩展字段，OpenAI SDK 类型未声明，故最小范围断言读取
         const rc = (delta as { reasoning_content?: string }).reasoning_content;
         if (rc) {
           if (live && !reasoning) process.stdout.write("  [llm-thinking] ");
