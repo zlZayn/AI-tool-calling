@@ -125,7 +125,7 @@ export class Agent {
         model: this.model,
         // Agent.compact 返回通用消息数组，SDK 入参要求 ChatCompletionMessageParam[]（库边界，最小范围断言）
         messages: Agent.compact(this.messages) as OpenAI.ChatCompletionMessageParam[],
-        tools: this.schemas.length > 0 ? this.schemas : undefined,
+        ...(this.schemas.length > 0 ? { tools: this.schemas } : {}),
         tool_choice: toolChoice,
         stream: true,
       });
