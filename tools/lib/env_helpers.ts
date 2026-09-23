@@ -19,6 +19,7 @@ import {
   uptime,
   version,
 } from "os";
+import { registerTool } from "./registry.js";
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -920,6 +921,21 @@ export async function fmt(catName: CategoryKey): Promise<string> {
     }
   }
   return lines.join("\n");
+}
+
+/** 信息类工具的统一注册：get_*_info 同形（无参数 + 一个类别 + 统一走 fmt）。
+ *  注意保留 `name: "get_<x>_info"` 字面量写法 —— 命名测试按首个 name: 匹配取工具名。 */
+export function registerInfoTool(info: {
+  name: string;
+  description: string;
+  category: CategoryKey;
+}): void {
+  registerTool({
+    name: info.name,
+    description: info.description,
+    parameters: {},
+    handler: async () => fmt(info.category),
+  });
 }
 
 // ---------------------------------------------------------------------------

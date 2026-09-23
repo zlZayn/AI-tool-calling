@@ -45,3 +45,14 @@ export class SandboxError extends Error {
     return new SandboxError("execution_error", stderr);
   }
 }
+
+/** 沙箱工具的统一错误出口：预期失败（SandboxError）转成结果文本，其余原样抛。
+ *  三个 run_* 工具（python / r / shell）此前各自抄了一份同形的 try/catch。 */
+export async function withSandboxErrors(run: () => Promise<string>): Promise<string> {
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof SandboxError) return e.message;
+    throw e;
+  }
+}

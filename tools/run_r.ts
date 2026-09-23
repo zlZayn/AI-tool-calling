@@ -6,7 +6,7 @@ import { join } from "path";
 import { z } from "zod";
 import { registerTool } from "./lib/registry.js";
 import { spawnProcess, truncate } from "./lib/env_helpers.js";
-import { SandboxError } from "./lib/errors.js";
+import { SandboxError, withSandboxErrors } from "./lib/errors.js";
 
 const TIMEOUT = 30_000;
 
@@ -110,11 +110,6 @@ registerTool({
   },
   handler: async (args) => {
     const expression = typeof args.expression === "string" ? args.expression : "";
-    try {
-      return await runR(expression);
-    } catch (e) {
-      if (e instanceof SandboxError) return e.message;
-      throw e;
-    }
+    return withSandboxErrors(() => runR(expression));
   },
 });
