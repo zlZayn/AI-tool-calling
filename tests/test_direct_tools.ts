@@ -8,6 +8,13 @@ import { getAllTools } from "../tools/index.js";
 const tools = getAllTools();
 console.log(`=== Tool count: ${tools.size} ===\n`);
 
+/** 取工具并收窄非空：缺注册时立刻以明确信息失败，而非到调用处才 TypeError */
+function mustGetTool(name: string) {
+  const tool = tools.get(name);
+  if (!tool) throw new Error(`[MISSING] ${name}`);
+  return tool;
+}
+
 // --- No-parameter tools ---
 const noParamTools = [
   "get_system_info",
@@ -28,7 +35,7 @@ for (const name of noParamTools) {
 
 // --- run_python ---
 console.log("--- run_python (expression) ---");
-const py = tools.get("run_python")!;
+const py = mustGetTool("run_python");
 console.log(await py.handler({ expression: "import math; print(math.pi)" }));
 console.log();
 
@@ -40,12 +47,12 @@ console.log();
 
 // --- run_shell ---
 console.log("--- run_shell ---");
-const sh = tools.get("run_shell")!;
+const sh = mustGetTool("run_shell");
 console.log(await sh.handler({ command: "Get-Date -Format yyyy-MM-dd" }));
 console.log();
 
 // --- run_r (skip if R not installed) ---
-const rTool = tools.get("run_r")!;
+const rTool = mustGetTool("run_r");
 console.log("--- run_r ---");
 const rResult = await rTool.handler({ expression: "print(1 + 1)" });
 console.log(rResult);
@@ -53,7 +60,7 @@ console.log();
 
 // --- get_runtime_info (first 5 lines) ---
 console.log("--- get_runtime_info (first 5 lines) ---");
-const rt = tools.get("get_runtime_info")!;
+const rt = mustGetTool("get_runtime_info");
 const rtResult = await rt.handler({ force_refresh: false });
 console.log(rtResult.split("\n").slice(0, 5).join("\n") + "\n...");
 console.log();

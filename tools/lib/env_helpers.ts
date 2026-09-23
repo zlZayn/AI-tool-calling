@@ -812,7 +812,10 @@ interface Category {
   getData: () => Promise<Record<string, CategoryValue>> | Record<string, CategoryValue>;
 }
 
-export const CATEGORIES: Record<string, Category> = {
+/** 内建类别键：与 CATEGORIES 的键一一对应（新类别需同时更新类型与表） */
+export type CategoryKey = "cpu" | "disk" | "gpu" | "memory" | "runtimes" | "system";
+
+export const CATEGORIES: Record<CategoryKey, Category> = {
   system: {
     label: "System",
     getData: () => ({
@@ -889,8 +892,9 @@ export const CATEGORIES: Record<string, Category> = {
   },
 };
 
-export async function fmt(catName: string): Promise<string> {
-  const cat = CATEGORIES[catName];
+export async function fmt(catName: CategoryKey): Promise<string> {
+  // 表已收窄为全键 Record，类型层不可达 undefined；保留兜底分支接住 JS 侧动态传入
+  const cat: Category | undefined = CATEGORIES[catName];
   if (!cat) return `(unknown category: ${catName})`;
 
   const data = await cat.getData();
