@@ -67,8 +67,5 @@ registerTool({
   parameters: {
     command: z.string().describe(COMMAND_DESC),
   },
-  handler: async (args) => {
-    const command = typeof args.command === "string" ? args.command : "";
-    return withSandboxErrors(() => runShell(command));
-  },
+  handler: async ({ command = "" }) => withSandboxErrors(() => runShell(command)),
 });

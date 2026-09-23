@@ -24,8 +24,8 @@ registerTool({
       .default(false)
       .describe("Re-scan instead of using cached results"),
   },
-  handler: async (args) => {
-    const forceRefresh = args.force_refresh === true;
+  handler: async ({ force_refresh }) => {
+    const forceRefresh = force_refresh === true;
     if (cache === null || forceRefresh) {
       cache = await fmt("runtimes");
     }
