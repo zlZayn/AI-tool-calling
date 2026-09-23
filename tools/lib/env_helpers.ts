@@ -421,7 +421,7 @@ interface RuntimeCheck {
   parser: (output: string) => string;
 }
 
-const RUNTIME_CHECKS: RuntimeCheck[] = [
+const RUNTIME_CHECKS = [
   // ---- Languages / Runtimes ----
   { label: "Python", executable: "python", args: ["--version"], parser: parseFirstLine },
   { label: "R", executable: "R", args: ["--version"], parser: parseFirstLine },
@@ -621,7 +621,7 @@ const RUNTIME_CHECKS: RuntimeCheck[] = [
   { label: "Apktool", executable: "apktool", args: ["--version"], parser: parseFirstLine },
   { label: "Jadx", executable: "jadx", args: ["--version"], parser: parseFirstLine },
   { label: "Wireshark (dumpcap)", executable: "dumpcap", args: ["--version"], parser: parseFirstLine },
-];
+] as const satisfies readonly RuntimeCheck[];
 
 // ---------------------------------------------------------------------------
 // Environment variable fast-check (zero process spawning)
