@@ -12,11 +12,11 @@
 - `npm test`（命名测试）· `npx tsx tests/test_direct_tools.ts` · `npx tsx tests/test_mcp_servers.ts`
 - `npx tsc --noEmit` · `npm run build` · `npm run dev:mcp:env` · `npm run dev:mcp:code`
 
-## 验证快照（2026-08-28 实测）
-- npm test: 24 passed / 0 failed
-- test_direct_tools: 9 个工具全过
-- test_mcp_servers: 2 个 server 全过
-- tsc --noEmit: clean（三开关全开，2026-09-24 起）
+## 验证快照（各行自带实测日期，main）
+- npm test: 24 passed / 0 failed（2026-09-24 复测；用例数会随刀漂，现查 `npm test` 末行）
+- test_direct_tools: 9 个工具全过（2026-08-28；工具清单现查 [tests/tool_schema.json](tests/tool_schema.json) 的 `servers[].tools`）
+- test_mcp_servers: 2 个 server 全过（2026-08-28；server 名与 `.mcp.json` 入口映射的一致性另有 `npm test` 里 naming-convention 的 cross-check 钉着）
+- tsc --noEmit: clean（2026-09-24 复测；三开关全开，自 2026-09-24 起）
 - CI（`.github/workflows/ci.yml`）：`npm ci` → `npx tsc --noEmit` → `npm test` → `npm run build`，Node 由 `.node-version` 声明（24）
 - CI 不跑 `tests/test_direct_tools.ts`：它通篇 `console.log`、零断言，当不了判据（要进 CI 得先把断言补上）；`test_mcp_servers.ts` 依赖 spawn + shell:true，暂未纳入
 
