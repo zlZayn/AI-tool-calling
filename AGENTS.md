@@ -4,6 +4,7 @@
 - 双件职责分离：AGENTS.md 只写规则，README.md 只写是什么/怎么改
 - 命名：文件/工具 snake_case，MCP server 名 kebab-case（见 [tools/TOOL_GUIDE.md](tools/TOOL_GUIDE.md)）
 - 新工具三步：新建 `tools/{name}.ts` → [tools/index.ts](tools/index.ts) 加 barrel import → 登记 [tool_schema.json](tests/tool_schema.json)
+- 严格开关全开（[tsconfig.json](tsconfig.json)：`strict` + `exactOptionalPropertyTypes` + `noUncheckedIndexedAccess`）：数组/记录下标访问先收窄再用；可选属性不要显式赋 `undefined`。判据跑真实配置 `npx tsc --noEmit`，不是「CLI 加开关跑过」——两开关单独开都可能 0 错、同时开才暴露交互位点
 - 架构：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 文档地图：[tools/README.md](tools/README.md) · [servers/README.md](servers/README.md) · [lib/README.md](lib/README.md) · [tests/README.md](tests/README.md) · [config/README.md](config/README.md) · [.agents/notes/](.agents/notes/)
 
@@ -15,7 +16,7 @@
 - npm test: 24 passed / 0 failed
 - test_direct_tools: 9 个工具全过
 - test_mcp_servers: 2 个 server 全过
-- tsc --noEmit: clean
+- tsc --noEmit: clean（三开关全开，2026-09-24 起）
 - CI（`.github/workflows/ci.yml`）：`npm ci` → `npx tsc --noEmit` → `npm test` → `npm run build`，Node 由 `.node-version` 声明（24）
 - CI 不跑 `tests/test_direct_tools.ts`：它通篇 `console.log`、零断言，当不了判据（要进 CI 得先把断言补上）；`test_mcp_servers.ts` 依赖 spawn + shell:true，暂未纳入
 
