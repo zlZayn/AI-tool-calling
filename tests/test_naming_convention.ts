@@ -53,7 +53,7 @@ function findDeclaredServerName(path: string): string | null {
     const m = readFileSync(path, "utf-8").match(
       /new\s+McpServer\s*\(\s*\{\s*name:\s*["']([^"']+)["']/
     );
-    return m ? m[1] : null;
+    return m?.[1] ?? null;
   } catch {
     return null;
   }
@@ -64,7 +64,7 @@ function findDeclaredToolName(path: string): string | null {
     const m = readFileSync(path, "utf-8").match(
       /name:\s*["']([^"']+)["']/
     );
-    return m ? m[1] : null;
+    return m?.[1] ?? null;
   } catch {
     return null;
   }
@@ -74,7 +74,10 @@ function findAllToolNames(path: string): Set<string> {
   try {
     const content = readFileSync(path, "utf-8");
     const matches = content.matchAll(/name:\s*["']([^"']+)["']/g);
-    return new Set(Array.from(matches, (m) => m[1]));
+    const names = Array.from(matches, (m) => m[1]).filter(
+      (n): n is string => n !== undefined
+    );
+    return new Set(names);
   } catch {
     return new Set();
   }

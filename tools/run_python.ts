@@ -58,7 +58,8 @@ async function runPython(expression: string): Promise<string> {
     }
 
     if (stdout.includes("RESULT:")) {
-      return truncate(stdout.split("RESULT:")[1].trim());
+      const payload = stdout.split("RESULT:")[1];
+      return truncate(payload?.trim() ?? "");
     }
     if (stderr) throw SandboxError.executionError(stderr.replace("ERROR: ", ""));
     if (stdout) return truncate(stdout);
