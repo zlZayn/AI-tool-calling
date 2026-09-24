@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  verify:
+    name: Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (version from .node-version)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tsc 是唯一的类型门禁（package.json 没有 typecheck 脚本，build 也是 tsc，
+      # 但 build 只在类型通过后才产文件，所以先 --noEmit 拿到清晰的错误列表）
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # 命名约定测试：24 条断言（工具名 / handler 形状 / MCP server 映射）
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

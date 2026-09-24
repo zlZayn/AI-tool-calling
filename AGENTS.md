@@ -16,6 +16,8 @@
 - test_direct_tools: 9 个工具全过
 - test_mcp_servers: 2 个 server 全过
 - tsc --noEmit: clean
+- CI（`.github/workflows/ci.yml`）：`npm ci` → `npx tsc --noEmit` → `npm test` → `npm run build`，Node 由 `.node-version` 声明（24）
+- CI 不跑 `tests/test_direct_tools.ts`：它通篇 `console.log`、零断言，当不了判据（要进 CI 得先把断言补上）；`test_mcp_servers.ts` 依赖 spawn + shell:true，暂未纳入
 
 ## 待办
 - [ ] 视觉识别工具模块未实施（[预期计划-提交推送别带上我.md](预期计划-提交推送别带上我.md)；其中 `lib/registry.ts`/`lib/types.ts` 路径已过时，实际在 tools/lib/）
