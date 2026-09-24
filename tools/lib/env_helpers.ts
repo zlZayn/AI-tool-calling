@@ -251,8 +251,12 @@ function parseNvidiaSmi(stdout: string): NvidiaGpuDetail | null {
   const headerIdx = lines.findIndex((l) => l.includes("memory.total"));
   if (headerIdx < 0 || headerIdx + 1 >= lines.length) return null;
 
-  const headers = lines[headerIdx].split(",").map((h) => h.trim());
-  const values = lines[headerIdx + 1].split(",").map((v) => v.trim());
+  const headerLine = lines[headerIdx];
+  const valueLine = lines[headerIdx + 1];
+  if (!headerLine || !valueLine) return null;
+
+  const headers = headerLine.split(",").map((h) => h.trim());
+  const values = valueLine.split(",").map((v) => v.trim());
 
   const get = (key: string): string => {
     const idx = headers.indexOf(key);
@@ -260,24 +264,24 @@ function parseNvidiaSmi(stdout: string): NvidiaGpuDetail | null {
   };
 
   const parseMb = (s: string): number => {
-    const m = s.match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : 0;
+    const digits = s.match(/(\d+)/)?.[1];
+    return digits ? parseInt(digits, 10) : 0;
   };
 
   const parsePct = (s: string): number => {
-    const m = s.match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : 0;
+    const digits = s.match(/(\d+)/)?.[1];
+    return digits ? parseInt(digits, 10) : 0;
   };
 
   const parseW = (s: string): number | null => {
     if (/n\/a|\[N\/A\]/i.test(s)) return null;
-    const m = s.match(/([\d.]+)/);
-    return m ? parseFloat(m[1]) : null;
+    const num = s.match(/([\d.]+)/)?.[1];
+    return num ? parseFloat(num) : null;
   };
 
   const parseTemp = (s: string): number => {
-    const m = s.match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : 0;
+    const digits = s.match(/(\d+)/)?.[1];
+    return digits ? parseInt(digits, 10) : 0;
   };
 
   return {
@@ -309,7 +313,7 @@ async function getNvidiaCudaVersion(): Promise<string> {
       encoding: "utf-8",
     });
     const cudaMatch = full.match(/CUDA Version:\s*([\d.]+)/);
-    return cudaMatch ? cudaMatch[1] : "";
+    return cudaMatch?.[1] ?? "";
   } catch {
     return "";
   }
@@ -864,6 +868,7 @@ export const CATEGORIES: Record<CategoryKey, Category> = {
       const result: Record<string, CategoryValue> = {};
       for (let i = 0; i < gpus.length; i++) {
         const g = gpus[i];
+        if (!g) continue;
         const prefix = gpus.length > 1 ? `gpu${i}` : "gpu";
         const entry: Record<string, string | number> = { name: g.name };
         if (g.vram_mb != null) entry.vram_mb = g.vram_mb;

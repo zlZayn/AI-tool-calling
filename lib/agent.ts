@@ -136,8 +136,9 @@ export class Agent {
       const toolCalls = new Map<number, ToolCallAccumulator>();
 
       for await (const chunk of apiStream) {
-        if (!chunk.choices.length) continue;
-        const delta = chunk.choices[0].delta;
+        const choice = chunk.choices[0];
+        if (!choice) continue;
+        const delta = choice.delta;
 
         // Reasoning (thinking) — reasoning_content 为模型扩展字段，OpenAI SDK 类型未声明，故最小范围断言读取
         const rc = (delta as { reasoning_content?: string }).reasoning_content;

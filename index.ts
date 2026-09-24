@@ -43,11 +43,13 @@ function parseArgs(argv: string[]): Flags {
       case "--list_tools":
         flags.listTools = true;
         break;
-      default:
-        if (!args[i].startsWith("-")) {
-          flags.question = args[i];
+      default: {
+        const arg = args[i];
+        if (arg !== undefined && !arg.startsWith("-")) {
+          flags.question = arg;
         }
         break;
+      }
     }
   }
 
