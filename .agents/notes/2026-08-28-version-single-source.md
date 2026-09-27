@@ -1,6 +1,6 @@
 # 决策：McpServer version 单一来源（2026-08-28）
 
-已实施：已实施
+状态：生效
 
 ## 问题
 - 两个 server 的 `McpServer({ version })` 硬编码 1.0.0
