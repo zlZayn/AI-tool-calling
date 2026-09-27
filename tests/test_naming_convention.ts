@@ -40,14 +40,6 @@ function fail(msg: string): void {
 // file content checks
 // ---------------------------------------------------------------------------
 
-function fileContains(path: string, pattern: RegExp): boolean {
-  try {
-    return pattern.test(readFileSync(path, "utf-8"));
-  } catch {
-    return false;
-  }
-}
-
 function findDeclaredServerName(path: string): string | null {
   try {
     const m = readFileSync(path, "utf-8").match(
@@ -67,19 +59,6 @@ function findDeclaredToolName(path: string): string | null {
     return m?.[1] ?? null;
   } catch {
     return null;
-  }
-}
-
-function findAllToolNames(path: string): Set<string> {
-  try {
-    const content = readFileSync(path, "utf-8");
-    const matches = content.matchAll(/name:\s*["']([^"']+)["']/g);
-    const names = Array.from(matches, (m) => m[1]).filter(
-      (n): n is string => n !== undefined
-    );
-    return new Set(names);
-  } catch {
-    return new Set();
   }
 }
 

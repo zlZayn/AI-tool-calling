@@ -8,7 +8,10 @@
     "dev": "tsx watch index.ts",
     "dev:mcp:env": "tsx servers/get_env_info_server.ts",
     "dev:mcp:code": "tsx servers/run_code_server.ts",
-    "test": "tsx tests/test_naming_convention.ts"
+    "test": "tsx tests/test_naming_convention.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.0",
@@ -17,8 +20,14 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^20.0.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
     "tsx": "^4.7.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.70.1"
   }
 }

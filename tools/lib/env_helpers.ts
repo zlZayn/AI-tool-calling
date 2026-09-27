@@ -42,20 +42,6 @@ async function psJson<T>(command: string): Promise<T | null> {
   }
 }
 
-/** Run a PowerShell command and return raw stdout string. */
-async function psRaw(command: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      "powershell",
-      ["-NoProfile", "-Command", command],
-      { timeout: 15_000, encoding: "utf-8" }
-    );
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Memory
 // ---------------------------------------------------------------------------
@@ -302,7 +288,7 @@ function parseNvidiaSmi(stdout: string): NvidiaGpuDetail | null {
 /** Try to get CUDA version from nvidia-smi. */
 async function getNvidiaCudaVersion(): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
+    await execFileAsync(
       "nvidia-smi",
       ["--query-gpu=driver_version", "--format=csv,noheader"],
       { timeout: 10_000, encoding: "utf-8" }
