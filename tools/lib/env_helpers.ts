@@ -387,6 +387,9 @@ function looksLikeError(text: string): boolean {
 
 /** Strip ANSI escape codes from a string. */
 function stripAnsi(text: string): string {
+  // ESC（\x1B）正是这个正则要匹配的东西，不是误写的控制字符 —— 本规则的本意是拦后者。
+  // 试过唯一能过检的写法（用 String.fromCharCode(27) 拼出模式再 new RegExp）：行为完全一样，
+  // 但把一个公认的 ANSI 剥离惯用式拆成字符串拼接，可读性净损，故保留 disable。
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
 }
