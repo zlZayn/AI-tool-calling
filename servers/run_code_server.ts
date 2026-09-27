@@ -39,7 +39,7 @@ try {
               content: [{ type: "text" as const, text: `Error: ${e}` }],
             };
           }
-        }
+        },
       );
     }
   }

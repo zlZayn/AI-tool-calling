@@ -26,7 +26,10 @@ const noParamTools = [
 
 for (const name of noParamTools) {
   const tool = tools.get(name);
-  if (!tool) { console.log(`[MISSING] ${name}`); continue; }
+  if (!tool) {
+    console.log(`[MISSING] ${name}`);
+    continue;
+  }
   console.log(`--- ${name} ---`);
   const result = await tool.handler({});
   console.log(result);
@@ -40,9 +43,11 @@ console.log(await py.handler({ expression: "import math; print(math.pi)" }));
 console.log();
 
 console.log("--- run_python (multi-line) ---");
-console.log(await py.handler({
-  expression: "x = [i**2 for i in range(5)]\nresult = x",
-}));
+console.log(
+  await py.handler({
+    expression: "x = [i**2 for i in range(5)]\nresult = x",
+  }),
+);
 console.log();
 
 // --- run_shell ---

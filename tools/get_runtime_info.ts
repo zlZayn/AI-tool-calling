@@ -19,10 +19,7 @@ registerTool({
     "Results are cached after the first call for speed; pass " +
     "force_refresh=true to re-scan.",
   parameters: {
-    force_refresh: z
-      .boolean()
-      .default(false)
-      .describe("Re-scan instead of using cached results"),
+    force_refresh: z.boolean().default(false).describe("Re-scan instead of using cached results"),
   },
   handler: async ({ force_refresh }) => {
     const forceRefresh = force_refresh === true;

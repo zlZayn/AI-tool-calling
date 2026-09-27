@@ -8,17 +8,7 @@
 
 import { exec, execFile, spawn } from "child_process";
 import { promisify } from "util";
-import {
-  arch,
-  cpus,
-  freemem,
-  hostname,
-  platform,
-  release,
-  totalmem,
-  uptime,
-  version,
-} from "os";
+import { arch, cpus, freemem, hostname, platform, release, totalmem, uptime, version } from "os";
 import { registerTool } from "./registry.js";
 
 const execAsync = promisify(exec);
@@ -31,11 +21,10 @@ const execFileAsync = promisify(execFile);
 /** Run a PowerShell command and return parsed JSON. Returns null on failure. */
 async function psJson<T>(command: string): Promise<T | null> {
   try {
-    const { stdout } = await execFileAsync(
-      "powershell",
-      ["-NoProfile", "-Command", command],
-      { timeout: 15_000, encoding: "utf-8" }
-    );
+    const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-Command", command], {
+      timeout: 15_000,
+      encoding: "utf-8",
+    });
     return JSON.parse(stdout.trim()) as T;
   } catch {
     return null;
@@ -51,9 +40,13 @@ interface MemoryInfo {
   FreePhysicalMemory: string;
 }
 
-async function getMemoryStatus(): Promise<{ totalGb: number; availableGb: number; usagePct: number }> {
+async function getMemoryStatus(): Promise<{
+  totalGb: number;
+  availableGb: number;
+  usagePct: number;
+}> {
   const info = await psJson<MemoryInfo>(
-    "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory | ConvertTo-Json"
+    "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory | ConvertTo-Json",
   );
   if (info) {
     const totalKb = parseInt(info.TotalVisibleMemorySize, 10);
@@ -127,7 +120,7 @@ export interface CpuInfo {
 
 async function getCpuInfo(): Promise<CpuInfo> {
   const info = await psJson<CpuCimEntry>(
-    "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed,CurrentClockSpeed,L2CacheSize,L3CacheSize,Architecture,LoadPercentage,VirtualizationFirmwareEnabled | ConvertTo-Json"
+    "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed,CurrentClockSpeed,L2CacheSize,L3CacheSize,Architecture,LoadPercentage,VirtualizationFirmwareEnabled | ConvertTo-Json",
   );
   if (info) {
     return {
@@ -173,7 +166,7 @@ type DiskMap = Record<string, Record<string, number>>;
 
 async function getDiskInfo(): Promise<DiskMap> {
   const raw = await psJson<DiskInfoEntry | DiskInfoEntry[]>(
-    "Get-CimInstance Win32_LogicalDisk | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json"
+    "Get-CimInstance Win32_LogicalDisk | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json",
   );
   if (!raw) return {};
   const entries = Array.isArray(raw) ? raw : [raw];
@@ -288,11 +281,10 @@ function parseNvidiaSmi(stdout: string): NvidiaGpuDetail | null {
 /** Try to get CUDA version from nvidia-smi. */
 async function getNvidiaCudaVersion(): Promise<string> {
   try {
-    await execFileAsync(
-      "nvidia-smi",
-      ["--query-gpu=driver_version", "--format=csv,noheader"],
-      { timeout: 10_000, encoding: "utf-8" }
-    );
+    await execFileAsync("nvidia-smi", ["--query-gpu=driver_version", "--format=csv,noheader"], {
+      timeout: 10_000,
+      encoding: "utf-8",
+    });
     // CUDA version is in the top banner of `nvidia-smi` (no args)
     const { stdout: full } = await execFileAsync("nvidia-smi", [], {
       timeout: 10_000,
@@ -324,7 +316,7 @@ async function getNvidiaDetail(): Promise<NvidiaGpuDetail | null> {
     const { stdout } = await execFileAsync(
       "nvidia-smi",
       [`--query-gpu=${fields.join(",")}`, "--format=csv,noheader,nounits"],
-      { timeout: 10_000, encoding: "utf-8" }
+      { timeout: 10_000, encoding: "utf-8" },
     );
     // Build a fake CSV with headers for the parser
     const fakeCsv = `${fields.join(",")}\n${stdout.trim()}`;
@@ -341,7 +333,7 @@ async function getNvidiaDetail(): Promise<NvidiaGpuDetail | null> {
 async function getGpuInfo(): Promise<GpuInfo[]> {
   // Basic info from CIM
   const raw = await psJson<GpuCimEntry | GpuCimEntry[]>(
-    "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion,VideoProcessor,CurrentRefreshRate | ConvertTo-Json"
+    "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion,VideoProcessor,CurrentRefreshRate | ConvertTo-Json",
   );
   if (!raw) return [];
   const cimEntries = Array.isArray(raw) ? raw : [raw];
@@ -447,7 +439,12 @@ const RUNTIME_CHECKS = [
   { label: "COBOL (GnuCOBOL)", executable: "cobc", args: ["--version"], parser: parseFirstLine },
   { label: "Fortran", executable: "gfortran", args: ["--version"], parser: parseFirstLine },
   { label: "Octave", executable: "octave", args: ["--version"], parser: parseFirstLine },
-  { label: "MatLab", executable: "matlab", args: ["-batch", "disp(version)"], parser: parseFirstLine }, // matlab -batch is slow & may hang; presence-only is fine
+  {
+    label: "MatLab",
+    executable: "matlab",
+    args: ["-batch", "disp(version)"],
+    parser: parseFirstLine,
+  }, // matlab -batch is slow & may hang; presence-only is fine
   // ---- Package managers ----
   { label: "npm", executable: "npm", args: ["--version"], parser: parseFirstLine },
   { label: "Yarn", executable: "yarn", args: ["--version"], parser: parseFirstLine },
@@ -497,8 +494,18 @@ const RUNTIME_CHECKS = [
   { label: "InfluxDB", executable: "influx", args: ["version"], parser: parseFirstLine },
   // ---- Cloud / IaC / DevOps ----
   { label: "Docker", executable: "docker", args: ["--version"], parser: parseFirstLine },
-  { label: "Docker Compose", executable: "docker-compose", args: ["--version"], parser: parseFirstLine },
-  { label: "Kubernetes (kubectl)", executable: "kubectl", args: ["version", "--client"], parser: parseFirstLine },
+  {
+    label: "Docker Compose",
+    executable: "docker-compose",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
+  {
+    label: "Kubernetes (kubectl)",
+    executable: "kubectl",
+    args: ["version", "--client"],
+    parser: parseFirstLine,
+  },
   { label: "Helm", executable: "helm", args: ["version", "--short"], parser: parseFirstLine },
   { label: "Terraform", executable: "terraform", args: ["--version"], parser: parseFirstLine },
   { label: "OpenTofu", executable: "tofu", args: ["--version"], parser: parseFirstLine },
@@ -509,7 +516,12 @@ const RUNTIME_CHECKS = [
   { label: "AWS CLI", executable: "aws", args: ["--version"], parser: parseFirstLine },
   { label: "Azure CLI", executable: "az", args: ["version"], parser: parseFirstLine },
   { label: "Google Cloud SDK", executable: "gcloud", args: ["--version"], parser: parseFirstLine },
-  { label: "Cloudflare (wrangler)", executable: "wrangler", args: ["--version"], parser: parseFirstLine },
+  {
+    label: "Cloudflare (wrangler)",
+    executable: "wrangler",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
   { label: "Firebase CLI", executable: "firebase", args: ["--version"], parser: parseFirstLine },
   { label: "Heroku CLI", executable: "heroku", args: ["--version"], parser: parseFirstLine },
   { label: "Vault", executable: "vault", args: ["--version"], parser: parseFirstLine },
@@ -524,8 +536,22 @@ const RUNTIME_CHECKS = [
   { label: "Vercel CLI", executable: "vercel", args: ["--version"], parser: parseFirstLine },
   { label: "Argo CD CLI", executable: "argocd", args: ["--version"], parser: parseFirstLine },
   // ---- Shells / Terminals ----
-  { label: "PowerShell 5+", executable: "powershell", args: ["-NoProfile", "-Command", "[Console]::OutputEncoding=[Text.Encoding]::UTF8;$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
-  { label: "PowerShell 7+", executable: "pwsh", args: ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], parser: parseFirstLine },
+  {
+    label: "PowerShell 5+",
+    executable: "powershell",
+    args: [
+      "-NoProfile",
+      "-Command",
+      "[Console]::OutputEncoding=[Text.Encoding]::UTF8;$PSVersionTable.PSVersion.ToString()",
+    ],
+    parser: parseFirstLine,
+  },
+  {
+    label: "PowerShell 7+",
+    executable: "pwsh",
+    args: ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"],
+    parser: parseFirstLine,
+  },
   { label: "Bash", executable: "bash", args: ["--version"], parser: parseFirstLine },
   { label: "Zsh", executable: "zsh", args: ["--version"], parser: parseFirstLine },
   { label: "Fish", executable: "fish", args: ["--version"], parser: parseFirstLine },
@@ -591,7 +617,12 @@ const RUNTIME_CHECKS = [
   { label: "Neovim", executable: "nvim", args: ["--version"], parser: parseFirstLine },
   { label: "Emacs", executable: "emacs", args: ["--version"], parser: parseFirstLine },
   { label: "Sublime Text", executable: "subl", args: ["--version"], parser: parseFirstLine },
-  { label: "JetBrains Toolbox", executable: "jetbrains-toolbox", args: ["--version"], parser: parseFirstLine },
+  {
+    label: "JetBrains Toolbox",
+    executable: "jetbrains-toolbox",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
   { label: "Positron", executable: "positron", args: ["--version"], parser: parseFirstLine },
   // ---- Reverse engineering / Security ----
   { label: "GDB", executable: "gdb", args: ["--version"], parser: parseFirstLine },
@@ -599,10 +630,25 @@ const RUNTIME_CHECKS = [
   { label: "Objdump", executable: "objdump", args: ["--version"], parser: parseFirstLine },
   { label: "Strace", executable: "strace", args: ["--version"], parser: parseFirstLine },
   { label: "Radare2", executable: "r2", args: ["--version"], parser: parseFirstLine },
-  { label: "Ghidra (server)", executable: "ghidraserver", args: ["--version"], parser: parseFirstLine },
+  {
+    label: "Ghidra (server)",
+    executable: "ghidraserver",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
   { label: "Nmap", executable: "nmap", args: ["--version"], parser: parseFirstLine },
-  { label: "Wireshark (tshark)", executable: "tshark", args: ["--version"], parser: parseFirstLine },
-  { label: "Metasploit (msfconsole)", executable: "msfconsole", args: ["--version"], parser: parseFirstLine },
+  {
+    label: "Wireshark (tshark)",
+    executable: "tshark",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
+  {
+    label: "Metasploit (msfconsole)",
+    executable: "msfconsole",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
   { label: "SQLMap", executable: "sqlmap", args: ["--version"], parser: parseFirstLine },
   { label: "Hashcat", executable: "hashcat", args: ["--version"], parser: parseFirstLine },
   { label: "John (JtR)", executable: "john", args: ["--version"], parser: parseFirstLine },
@@ -611,7 +657,12 @@ const RUNTIME_CHECKS = [
   { label: "Binwalk", executable: "binwalk", args: ["--version"], parser: parseFirstLine },
   { label: "Apktool", executable: "apktool", args: ["--version"], parser: parseFirstLine },
   { label: "Jadx", executable: "jadx", args: ["--version"], parser: parseFirstLine },
-  { label: "Wireshark (dumpcap)", executable: "dumpcap", args: ["--version"], parser: parseFirstLine },
+  {
+    label: "Wireshark (dumpcap)",
+    executable: "dumpcap",
+    args: ["--version"],
+    parser: parseFirstLine,
+  },
 ] as const satisfies readonly RuntimeCheck[];
 
 // ---------------------------------------------------------------------------
@@ -684,7 +735,10 @@ function detectFromEnv(): { found: Record<string, string>; detected: Set<string>
     let allPresent = true;
     for (const v of check.requiredVars) {
       const val = process.env[v];
-      if (!val) { allPresent = false; break; }
+      if (!val) {
+        allPresent = false;
+        break;
+      }
       env[v] = val;
     }
     if (!allPresent) continue;
@@ -706,7 +760,11 @@ async function whichExe(exe: string): Promise<string | null> {
   try {
     const cmd = process.platform === "win32" ? `where ${exe}` : `which ${exe}`;
     const { stdout } = await execAsync(cmd, { timeout: 5_000, encoding: "utf-8" });
-    const lines = stdout.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = stdout
+      .trim()
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
     if (lines.length === 0) return null;
 
     if (process.platform === "win32") {
@@ -726,7 +784,11 @@ async function whichExe(exe: string): Promise<string | null> {
  *  Uses execFile for .exe (avoids cmd.exe PATH quirks) and cmd /c for .cmd/.bat.
  *  Some tools (e.g. bz --version) print version info but exit non-zero;
  *  we catch that and still try to extract from stdout/stderr. */
-async function queryVersion(exePath: string, args: string[], timeout = 15_000): Promise<string | null> {
+async function queryVersion(
+  exePath: string,
+  args: string[],
+  timeout = 15_000,
+): Promise<string | null> {
   const isCmd = /\.(cmd|bat)$/i.test(exePath);
   const run = isCmd
     ? () => execAsync(`"${exePath}" ${args.join(" ")}`, { timeout, encoding: "utf-8" })
@@ -752,7 +814,7 @@ async function detectRuntimesDirect(): Promise<Record<string, string>> {
 
   // Phase 2: PATH scanning — skip tools already resolved with version from env.
   const pathChecks = RUNTIME_CHECKS.filter(
-    (c) => !found[c.label] // not yet resolved with version
+    (c) => !found[c.label], // not yet resolved with version
   );
 
   const batchSize = 20;
@@ -771,7 +833,7 @@ async function detectRuntimesDirect(): Promise<Record<string, string>> {
           return { label: check.label, version };
         }
         return { label: check.label, version: "(detected, no version info)" };
-      })
+      }),
     );
 
     for (const result of results) {
@@ -796,7 +858,13 @@ export async function detectRuntimes(forceRefresh = false): Promise<Record<strin
 // Category definitions + formatter
 // ---------------------------------------------------------------------------
 
-type CategoryValue = string | number | boolean | string[] | Record<string, string | number | boolean> | Record<string, Record<string, string | number | boolean>>;
+type CategoryValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | Record<string, string | number | boolean>
+  | Record<string, Record<string, string | number | boolean>>;
 
 interface Category {
   label: string;
@@ -944,7 +1012,7 @@ export interface SpawnResult {
 export function spawnProcess(
   command: string,
   args: string[],
-  timeoutMs: number = 10_000
+  timeoutMs: number = 10_000,
 ): Promise<SpawnResult> {
   return new Promise((resolve) => {
     const proc = spawn(command, args, {

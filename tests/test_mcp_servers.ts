@@ -24,7 +24,7 @@ function sendMcp(
   proc: ChildProcess,
   method: string,
   params: Record<string, unknown> = {},
-  id: number = 1
+  id: number = 1,
 ): Promise<McpResponse> {
   return new Promise((resolve, reject) => {
     const msg = JSON.stringify({ jsonrpc: "2.0", id, method, params });
@@ -63,7 +63,7 @@ function sendMcp(
 async function testServer(
   name: string,
   scriptPath: string,
-  expectedTools: string[]
+  expectedTools: string[],
 ): Promise<boolean> {
   console.log(`\n=== Testing MCP server: ${name} ===`);
   let passed = true;
@@ -97,7 +97,7 @@ async function testServer(
 
     // 2. Send initialized notification
     proc.stdin?.write(
-      JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n"
+      JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n",
     );
 
     // 3. List tools
@@ -130,12 +130,7 @@ async function testServer(
       else if (toolName === "run_shell") args.command = "Write-Output hello";
 
       console.log(`  [3] Calling tool: ${toolName}(${JSON.stringify(args)})...`);
-      const callResp = await sendMcp(
-        proc,
-        "tools/call",
-        { name: toolName, arguments: args },
-        3
-      );
+      const callResp = await sendMcp(proc, "tools/call", { name: toolName, arguments: args }, 3);
       if (callResp.error) {
         console.log(`  [FAIL] tools/call: ${callResp.error.message}`);
         passed = false;
@@ -163,24 +158,20 @@ async function testServer(
 async function main(): Promise<void> {
   const results: Record<string, boolean> = {};
 
-  results["get-env-info"] = await testServer(
-    "get-env-info",
-    "servers/get_env_info_server.ts",
-    [
-      "get_system_info",
-      "get_cpu_info",
-      "get_memory_info",
-      "get_disk_info",
-      "get_gpu_info",
-      "get_runtime_info",
-    ]
-  );
+  results["get-env-info"] = await testServer("get-env-info", "servers/get_env_info_server.ts", [
+    "get_system_info",
+    "get_cpu_info",
+    "get_memory_info",
+    "get_disk_info",
+    "get_gpu_info",
+    "get_runtime_info",
+  ]);
 
-  results["run-code"] = await testServer(
-    "run-code",
-    "servers/run_code_server.ts",
-    ["run_python", "run_r", "run_shell"]
-  );
+  results["run-code"] = await testServer("run-code", "servers/run_code_server.ts", [
+    "run_python",
+    "run_r",
+    "run_shell",
+  ]);
 
   console.log("\n=== Summary ===");
   for (const [name, ok] of Object.entries(results)) {

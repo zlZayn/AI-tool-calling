@@ -44,7 +44,7 @@ export class Agent {
     client: OpenAI,
     model: string,
     tools: Map<string, Tool>,
-    schemas: OpenAI.ChatCompletionTool[]
+    schemas: OpenAI.ChatCompletionTool[],
   ) {
     this.client = client;
     this.model = model;
@@ -61,8 +61,8 @@ export class Agent {
     } catch {
       throw new Error(
         `Config not found: ${cfgPath}\n` +
-        `Copy the example config and fill in your API key:\n` +
-        `  cp config/config_example.json config/config.json`
+          `Copy the example config and fill in your API key:\n` +
+          `  cp config/config_example.json config/config.json`,
       );
     }
     const cfg = JSON.parse(raw);
@@ -110,14 +110,12 @@ export class Agent {
       verbose?: boolean;
       stream?: boolean;
       forceTool?: boolean;
-    } = {}
+    } = {},
   ): Promise<string> {
     const { verbose = false, stream = false, forceTool = false } = options;
 
     this.messages.push({ role: "user", content: userMessage });
-    const toolChoice: OpenAI.ChatCompletionToolChoiceOption = forceTool
-      ? "required"
-      : "auto";
+    const toolChoice: OpenAI.ChatCompletionToolChoiceOption = forceTool ? "required" : "auto";
     const live = verbose && stream;
 
     while (true) {

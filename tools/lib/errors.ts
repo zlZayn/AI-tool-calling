@@ -6,11 +6,7 @@
  */
 
 /** Error kind — used to distinguish failure modes. */
-export type SandboxErrorKind =
-  | "timeout"
-  | "not_found"
-  | "crash"
-  | "execution_error";
+export type SandboxErrorKind = "timeout" | "not_found" | "crash" | "execution_error";
 
 /** Thrown when a sandbox process exceeds its time limit. */
 export class SandboxError extends Error {
@@ -34,10 +30,7 @@ export class SandboxError extends Error {
 
   /** Create a crash error (killed by signal). */
   static crash(signal: number): SandboxError {
-    return new SandboxError(
-      "crash",
-      `Error: process crashed (signal ${signal})`
-    );
+    return new SandboxError("crash", `Error: process crashed (signal ${signal})`);
   }
 
   /** Create an execution error from stderr output. */

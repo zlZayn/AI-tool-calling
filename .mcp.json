@@ -3,19 +3,13 @@
     "run-code": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "tsx",
-        "servers/run_code_server.ts"
-      ],
+      "args": ["tsx", "servers/run_code_server.ts"],
       "env": {}
     },
     "get-env-info": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "tsx",
-        "servers/get_env_info_server.ts"
-      ],
+      "args": ["tsx", "servers/get_env_info_server.ts"],
       "env": {}
     }
   }

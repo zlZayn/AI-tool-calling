@@ -43,7 +43,7 @@ function fail(msg: string): void {
 function findDeclaredServerName(path: string): string | null {
   try {
     const m = readFileSync(path, "utf-8").match(
-      /new\s+McpServer\s*\(\s*\{\s*name:\s*["']([^"']+)["']/
+      /new\s+McpServer\s*\(\s*\{\s*name:\s*["']([^"']+)["']/,
     );
     return m?.[1] ?? null;
   } catch {
@@ -53,9 +53,7 @@ function findDeclaredServerName(path: string): string | null {
 
 function findDeclaredToolName(path: string): string | null {
   try {
-    const m = readFileSync(path, "utf-8").match(
-      /name:\s*["']([^"']+)["']/
-    );
+    const m = readFileSync(path, "utf-8").match(/name:\s*["']([^"']+)["']/);
     return m?.[1] ?? null;
   } catch {
     return null;
@@ -77,12 +75,8 @@ function main(): number {
   const convention = schema.naming_convention;
 
   console.log("--- Naming convention ---");
-  console.log(
-    `    Server: ${convention.server.name} -> ${convention.server.file}`
-  );
-  console.log(
-    `    Tool:   ${convention.tool.name} -> ${convention.tool.file}`
-  );
+  console.log(`    Server: ${convention.server.name} -> ${convention.server.file}`);
+  console.log(`    Tool:   ${convention.tool.name} -> ${convention.tool.file}`);
   console.log();
 
   // ------------------------------------------------------------------
@@ -112,9 +106,7 @@ function main(): number {
     if (declared === null) {
       fail(`Could not find McpServer({ name: "..." }) in ${serverFile}`);
     } else if (declared !== serverName) {
-      fail(
-        `Server name mismatch: declared "${declared}", expected "${serverName}"`
-      );
+      fail(`Server name mismatch: declared "${declared}", expected "${serverName}"`);
     } else {
       ok(`Server name: "${declared}"`);
     }
@@ -140,9 +132,7 @@ function main(): number {
       if (declaredTool === null) {
         fail(`  Could not find name: "..." in tools/${toolFile}`);
       } else if (declaredTool !== toolName) {
-        fail(
-          `  Tool name mismatch: declared "${declaredTool}", expected "${toolName}"`
-        );
+        fail(`  Tool name mismatch: declared "${declaredTool}", expected "${toolName}"`);
       } else {
         ok(`  Tool name: "${declaredTool}"`);
       }
@@ -183,9 +173,7 @@ function main(): number {
         if (found) {
           ok(`"${serverName}" -> servers/${expectedFile}`);
         } else {
-          fail(
-            `"${serverName}" args do not reference servers/${expectedFile}`
-          );
+          fail(`"${serverName}" args do not reference servers/${expectedFile}`);
         }
       }
       console.log();

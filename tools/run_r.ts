@@ -14,11 +14,7 @@ function cleanROutput(s: string): string {
   const lines = s.split("\n");
   const cleaned = lines.filter((line) => {
     const trimmed = line.trim();
-    return (
-      !trimmed.startsWith("null device") &&
-      trimmed !== "[1] 1" &&
-      trimmed !== "1"
-    );
+    return !trimmed.startsWith("null device") && trimmed !== "[1] 1" && trimmed !== "1";
   });
   return cleaned.join("\n").trim();
 }
@@ -37,7 +33,10 @@ async function runViaFile(expression: string): Promise<string> {
     if (result.exitCode !== 0 && !stdout && !stderr) {
       throw SandboxError.notFound("Rscript");
     }
-    if (stderr.toLowerCase().includes("not recognized") || stderr.toLowerCase().includes("not found")) {
+    if (
+      stderr.toLowerCase().includes("not recognized") ||
+      stderr.toLowerCase().includes("not found")
+    ) {
       throw SandboxError.notFound("Rscript");
     }
     if (result.exitCode < 0) {

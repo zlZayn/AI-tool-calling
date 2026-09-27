@@ -65,7 +65,7 @@ async function listTools(): Promise<void> {
 
 async function ask(
   question: string,
-  options: { showProcess: boolean; stream: boolean; forceTool: boolean }
+  options: { showProcess: boolean; stream: boolean; forceTool: boolean },
 ): Promise<void> {
   const agent = await Agent.create();
   try {

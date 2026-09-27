@@ -53,7 +53,10 @@ async function runPython(expression: string): Promise<string> {
     if (result.exitCode !== 0 && !stdout && !stderr) {
       throw SandboxError.notFound("python");
     }
-    if (stderr.toLowerCase().includes("not recognized") || stderr.toLowerCase().includes("not found")) {
+    if (
+      stderr.toLowerCase().includes("not recognized") ||
+      stderr.toLowerCase().includes("not found")
+    ) {
       throw SandboxError.notFound("python");
     }
 
@@ -65,7 +68,7 @@ async function runPython(expression: string): Promise<string> {
     if (stdout) return truncate(stdout);
     return "(no output)";
   } finally {
-    await unlink(tmpPath).catch(() => { });
+    await unlink(tmpPath).catch(() => {});
   }
 }
 
