@@ -9,6 +9,8 @@
 - 文档地图：[tools/README.md](tools/README.md) · [servers/README.md](servers/README.md) · [lib/README.md](lib/README.md) · [tests/README.md](tests/README.md) · [config/README.md](config/README.md) · [.agents/notes/](.agents/notes/)
 
 ## 常用命令
+
+- 本地钩子：`pre-commit install`（每个 clone 一次；本体 `uv tool install pre-commit`）——提交前自动 `prettier --write` + `eslint --fix`（`npx --no-install`，不联网）；CI 只读新增 lint + format:check
 - `npm test`（命名测试）· `npx tsx tests/test_direct_tools.ts` · `npx tsx tests/test_mcp_servers.ts`
 - `npx tsc --noEmit` · `npm run build` · `npm run dev:mcp:env` · `npm run dev:mcp:code`
 

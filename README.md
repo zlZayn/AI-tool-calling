@@ -122,3 +122,22 @@ AI-tool-calling/
 ```
 
 Maintainers: see [AGENTS.md](AGENTS.md) for rules, verification snapshot, and the doc map.
+
+---
+
+## Local commit hook (pre-commit)
+
+Auto-fixes formatting (Prettier) and lint (ESLint) before each commit — seconds only, and always via
+`npx --no-install`, so it never downloads anything. Typecheck, tests and build stay in CI.
+Prerequisite: uv and pre-commit (`uv tool install pre-commit` puts the shim in `~/.local/bin`).
+
+```bash
+uv tool install pre-commit
+pre-commit install
+```
+
+> Restart the terminal (or reload the shell config) for PATH to take effect.
+
+- Run over everything: `pre-commit run --all-files`
+- Skip one commit: `git commit --no-verify`
+- Definition: [.pre-commit-config.yaml](.pre-commit-config.yaml) (the same tools and versions CI uses)
