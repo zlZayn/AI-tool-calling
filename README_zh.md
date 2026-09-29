@@ -1,5 +1,7 @@
 # AI-tool-calling
 
+[![CI](https://github.com/zlZayn/AI-tool-calling/actions/workflows/ci.yml/badge.svg)](https://github.com/zlZayn/AI-tool-calling/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 [English](README.md) | [简体中文](README_zh.md)
 
 ## 预览
@@ -115,3 +117,15 @@ AI-tool-calling/
 ├── package.json
 └── tsconfig.json
 ```
+
+---
+
+## 许可
+
+- 本仓基于 [MIT 许可](LICENSE) 发布。
+
+## 贡献
+
+- 本仓为个人项目；问题与建议请走 [Issues](https://github.com/zlZayn/AI-tool-calling/issues)。
+
+维护者文档地图 → 见 [AGENTS.md](AGENTS.md)。

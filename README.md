@@ -1,5 +1,7 @@
 # AI-tool-calling
 
+[![CI](https://github.com/zlZayn/AI-tool-calling/actions/workflows/ci.yml/badge.svg)](https://github.com/zlZayn/AI-tool-calling/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 [English](README.md) | [简体中文](README_zh.md)
 
 ## Preview
@@ -122,3 +124,15 @@ AI-tool-calling/
 ```
 
 Maintainers: see [AGENTS.md](AGENTS.md) for rules, verification snapshot, and the doc map.
+
+---
+
+## License
+
+- Released under the [MIT License](LICENSE).
+
+## Contributing
+
+- Personal project; questions and suggestions welcome via [Issues](https://github.com/zlZayn/AI-tool-calling/issues).
+
+Maintainer docs map → [AGENTS.md](AGENTS.md).
